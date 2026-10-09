@@ -1,0 +1,9 @@
+# Canal city facade — built-in imagegen
+
+Output: `public/assets/materials/aero-glass-interiors.png`
+
+Generated with the built-in imagegen tool. This is a surface texture on curved 3D buildings, not an environment backdrop or scroll transition.
+
+Prompt:
+
+Use case: photorealistic-natural. Asset type: high resolution physically detailed seamless color texture for the UV surface of a real 3D futuristic skyscraper in a Frutiger Aero canal city. Create a perfectly front-facing orthographic flat architectural curtain-wall material atlas, square composition, cropped seamlessly edge-to-edge with no outside building silhouette, NO sky, NO ground, NO text, NO perspective convergence. A repeating grid of 12 columns by 12 rows of luxurious cyan aqua architectural glass windows with extremely slender polished silver mullions and white horizontal floor edges. Through the exceptionally clear slightly blue glass, show richly varied photorealistic office interiors at subtle depth: white desks, structural columns, ceiling light strips, glass conference rooms, occasional lush green indoor plants, some warm pale gold lights. Reflections are subtle pale cyan and white, preserve interior visibility. Overall aqua turquoise cyan and clean white optimistic 2000s Frutiger Aero utopian eco city architecture, physically realistic ray-traced architectural photography, crisp tiny interior details, slight differences between every window. Mostly blue glass, some windows darker teal, some windows pale sky cyan, 10% windows softly warm white. This is a texture sheet to wrap cylindrical 3D buildings, NOT a picture of a skyline. No doors at ground floor, no border, no shadows crossing between tiles, no decorative graphics, no readable words, no watermark. High detail and believable transparency are paramount.

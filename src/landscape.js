@@ -1,101 +1,70 @@
 import * as THREE from 'three';
-import { islands, islandHeight } from './journey.js';
-import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { sweep, surface } from './build.js';
+import { TAU, islands, islandHeight, islandEdge, RIM } from './layout.js';
 
 export async function loadSurfaces(renderer) {
-  const loader = new THREE.TextureLoader();
+  const loader = new THREE.TextureLoader(), anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   async function set(name) {
-    const [color, normal, roughness] = await Promise.all(['diff','nor_gl','rough'].map(kind => loader.loadAsync(`/assets/materials/${name}_${kind}_1k.jpg`)));
+    const [color, normal, roughness] = await Promise.all(['diff', 'nor_gl', 'rough'].map(kind => loader.loadAsync(`/assets/materials/${name}_${kind}_1k.jpg`)));
     color.colorSpace = THREE.SRGBColorSpace;
-    for(const texture of [color, normal, roughness]) {
-      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-      texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-    }
-    return {color, normal, roughness};
+    for (const texture of [color, normal, roughness]) { texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.anisotropy = anisotropy; }
+    return { color, normal, roughness };
   }
-  const [grass,rock,sand] = await Promise.all([set('leafy_grass'),set('marble_cliff_02'),set('coast_sand_01')]);
-  return {grass, rock, sand};
+  const [grass, rock, sand] = await Promise.all([set('grass_ground'), set('marble_cliff_02'), set('coast_sand_01')]);
+  return { grass, rock, sand };
 }
 
-function terrainGeometry(island, detail=1) {
-  const rings = Math.round(52 * detail), segments = Math.round(128 * detail);
-  const vertices=[],uvs=[],indices=[];
-  for(let r=0;r<=rings;r++)for(let a=0;a<=segments;a++) {
-    const angle=a/segments*Math.PI*2,radius=r/rings;
-    const edge=1+.07*Math.sin(angle*5+island.seed)+.035*Math.sin(angle*9);
-    const x=island.x+Math.cos(angle)*radius*island.rx*edge,z=island.z+Math.sin(angle)*radius*island.rz*edge;
-    const y=islandHeight(island,x,z);
-    vertices.push(x,y,z);uvs.push(x*.32,z*.32);
-    if(r<rings&&a<segments){const i=r*(segments+1)+a;indices.push(i,i+1,i+segments+1,i+1,i+segments+2,i+segments+1);}
-  }
-  const geometry=new THREE.BufferGeometry();
-  geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
-  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
-  geometry.setIndex(indices);geometry.computeVertexNormals();
-  return geometry;
-}
-
-function groundMaterial(maps) {
-  const material=new THREE.MeshStandardMaterial({map:maps.grass.color,normalMap:maps.grass.normal,roughnessMap:maps.grass.roughness,roughness:.95,normalScale:new THREE.Vector2(.55,.55)});
-  material.onBeforeCompile=shader=>{
-    Object.assign(shader.uniforms,{
-      groundSand:{value:maps.sand.color},groundRock:{value:maps.rock.color},
-      sandNormal:{value:maps.sand.normal},rockNormal:{value:maps.rock.normal},
-    });
-    shader.vertexShader='varying vec3 terrainPoint; varying vec3 terrainNormal;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nterrainPoint=position;terrainNormal=normal;');
-    shader.fragmentShader='varying vec3 terrainPoint; varying vec3 terrainNormal; uniform sampler2D groundSand;uniform sampler2D groundRock;uniform sampler2D sandNormal;uniform sampler2D rockNormal;\n'+shader.fragmentShader;
-    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`
-      float shoreline=1.-smoothstep(.05,.9,terrainPoint.y);
-      float cliff=smoothstep(.28,.64,1.-normalize(terrainNormal).y)*(1.-shoreline);
-      vec3 grass=texture2D(map,vMapUv).rgb*vec3(.28,.72,.12);
-      vec3 sand=texture2D(groundSand,terrainPoint.xz*.24).rgb;
-      vec3 rock=texture2D(groundRock,terrainPoint.xz*.23).rgb;
-      diffuseColor.rgb*=mix(mix(grass,sand,shoreline),rock,cliff);
-    `);
-    shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',THREE.ShaderChunk.normal_fragment_maps).replace('vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;',`
-      vec3 mapN = mix(mix(texture2D(normalMap,vNormalMapUv).xyz,texture2D(sandNormal,terrainPoint.xz*.24).xyz,shoreline),texture2D(rockNormal,terrainPoint.xz*.23).xyz,cliff)*2.-1.;
-    `);
+// Ground is textured from world position, so lawns, islands and the gardens
+// inside the spheres all share one continuous, seamless turf. The scanned grass
+// supplies blade-scale detail; the colour itself is graded to a watered lawn.
+function groundMaterial(maps, wild) {
+  const material = new THREE.MeshStandardMaterial({ map: maps.grass.color, normalMap: maps.grass.normal, normalScale: new THREE.Vector2(.7, .7), roughness: .94, envMapIntensity: .45 });
+  material.onBeforeCompile = shader => {
+    Object.assign(shader.uniforms, { groundSand: { value: maps.sand.color }, groundRock: { value: maps.rock.color } });
+    shader.vertexShader = `varying vec3 vLand; varying vec3 vLandNormal;\n${shader.vertexShader}`
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLand = (modelMatrix * vec4(transformed, 1.)).xyz; vLandNormal = normal;');
+    shader.fragmentShader = `varying vec3 vLand; varying vec3 vLandNormal; uniform sampler2D groundSand; uniform sampler2D groundRock;\n${shader.fragmentShader}`
+      .replace('#include <map_fragment>', `
+        vec2 turf = vLand.xz;
+        float blade = dot(texture2D(map, turf * .23).rgb, vec3(.3, .55, .15));
+        float mottle = texture2D(map, turf * .019 + .37).g, drift = texture2D(map, turf * .0043).r;
+        vec3 lush = mix(vec3(.028, .105, .012), vec3(.125, .27, .03), saturate(blade * 3.1 - .42));
+        lush *= .62 + .8 * mottle; lush = mix(lush, lush * vec3(1.3, 1.08, .6), saturate(drift * 2.4 - .55) * .5);
+        ${wild ? `
+        float shore = 1. - smoothstep(.2, 2.4, vLand.y), steep = smoothstep(.36, .7, 1. - normalize(vLandNormal).y) * (1. - shore);
+        vec3 canopy = lush * mix(vec3(.5, .68, .6), vec3(.86, .95, .7), saturate(mottle * 3. - .9));
+        lush = mix(mix(canopy, texture2D(groundSand, turf * .09).rgb, shore), texture2D(groundRock, turf * .045).rgb * 1.1, steep);` : `
+        // Faint mowing bands, as on any tended lawn.
+        lush *= .93 + .07 * sin(turf.x * 1.05 + turf.y * .62);`}
+        diffuseColor.rgb = lush;`)
+      .replace('#include <normal_fragment_maps>', THREE.ShaderChunk.normal_fragment_maps.replace('texture2D( normalMap, vNormalMapUv )', 'texture2D( normalMap, vLand.xz * .23 )'));
   };
+  material.customProgramCacheKey = () => `aero-ground-${wild}`;
   return material;
 }
 
-function rockGeometry() {
-  let geometry=new THREE.IcosahedronGeometry(1,3);
-  geometry.deleteAttribute('normal');geometry.deleteAttribute('uv');geometry=mergeVertices(geometry);
-  const positions=geometry.attributes.position,uv=[];
-  for(let i=0;i<positions.count;i++) {
-    const x=positions.getX(i),y=positions.getY(i),z=positions.getZ(i);
-    const shape=1+.13*Math.sin(x*5+z*3)+.08*Math.sin(y*9-z*7)+.035*Math.sin(x*23+y*19+z*17);
-    positions.setXYZ(i,x*shape,y*shape*.7,z*shape);
-    uv.push(Math.atan2(z,x)/Math.PI*.5+.5,Math.asin(Math.max(-1,Math.min(1,y)))/Math.PI+.5);
-  }
-  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));geometry.computeVertexNormals();return geometry;
+export function landFinishes(maps) {
+  return { lawn: { material: groundMaterial(maps, false) }, wild: { material: groundMaterial(maps, true) } };
 }
 
-export function createLandscape({scene,maps,random}) {
-  const ground=groundMaterial(maps),shoreRocks=[],matrix=new THREE.Object3D();
-  for(const island of islands) {
-    const terrain=new THREE.Mesh(terrainGeometry(island,island.z < -130?.65:1),ground);
-    terrain.receiveShadow=true;scene.add(terrain);
-    for(let i=0;i<32;i++) {
-      const a=random()*Math.PI*2,r=.72+random()*.3;
-      const x=island.x+Math.cos(a)*r*island.rx,z=island.z+Math.sin(a)*r*island.rz;
-      const s=.45+Math.pow(random(),2)*2.4;
-      shoreRocks.push({x,z,y:Math.max(-.6,islandHeight(island,x,z))-.2,s,angle:random()*Math.PI*2});
-    }
+function terrain(island, rings, segments, reach) {
+  return surface(Array.from({ length: rings + 1 }, (_, r) => Array.from({ length: segments + 1 }, (_, a) => {
+    const angle = a / segments * TAU, radius = r / rings * reach * islandEdge(island, angle);
+    const x = island.x + Math.cos(angle) * radius * island.rx, z = island.z + Math.sin(angle) * radius * island.rz;
+    return { x, y: islandHeight(island, x, z), z };
+  })));
+}
+
+export function buildLandscape({ add }) {
+  // Park islands sit in the lagoon like great planters, each inside a white kerb.
+  const KERB = [[.02, -1.8], [.02, .46], [.3, .7], [.37, 1], [.23, 1.27], [-.08, 1.36], [-.42, 1.29], [-.58, 1.06]];
+  for (const island of islands) {
+    if (island.wild) { add('wild', terrain(island, 26, 84, 1)); continue; }
+    add('lawn', terrain(island, 14, 72, RIM + .03));
+    const outline = Array.from({ length: 120 }, (_, i) => {
+      const angle = i / 120 * TAU, reach = islandEdge(island, angle) * (RIM + .045);
+      return { x: island.x + Math.cos(angle) * reach * island.rx, z: island.z + Math.sin(angle) * reach * island.rz };
+    });
+    add('white', sweep(outline, KERB, { closed: true, outward: 1, uvScale: .5 }));
   }
-  const cliff=new THREE.MeshStandardMaterial({map:maps.rock.color,normalMap:maps.rock.normal,roughnessMap:maps.rock.roughness,roughness:.93,normalScale:new THREE.Vector2(.8,.8),color:0xf4fff5});
-  const geometry=rockGeometry();
-  const rocks=new THREE.InstancedMesh(geometry,cliff,shoreRocks.length);
-  shoreRocks.forEach((r,i)=>{matrix.position.set(r.x,r.y,r.z);matrix.rotation.set(.12,r.angle,.07);matrix.scale.set(r.s,r.s*(.65+random()*.3),r.s*(.8+random()*.5));matrix.updateMatrix();rocks.setMatrixAt(i,matrix.matrix);});
-  rocks.castShadow=true;rocks.receiveShadow=true;scene.add(rocks);
-  for(const [x,y,z,r,h] of [[-10,13,-84,7.7,2.8],[-19,10,24,3.2,1.6]]) {
-    const island={x,z,rx:r,rz:r,h,seed:42};
-    const floating=new THREE.Mesh(terrainGeometry(island,.8),ground);floating.position.y=y;floating.castShadow=true;floating.receiveShadow=true;scene.add(floating);
-    const foundation=new THREE.Mesh(geometry,cliff);foundation.position.set(x,y-2.4,z);foundation.scale.set(r*.99,4.8,r*.99);foundation.castShadow=true;foundation.receiveShadow=true;scene.add(foundation);
-  }
-  const sand=maps.sand.color.clone();sand.repeat.set(230,230);sand.needsUpdate=true;
-  const bottom=new THREE.Mesh(new THREE.PlaneGeometry(1600,1600),new THREE.MeshStandardMaterial({map:sand,color:0xb3e5d8,roughness:1}));
-  bottom.rotation.x=-Math.PI/2;bottom.position.y=-4.5;bottom.receiveShadow=true;scene.add(bottom);
-  return {ground,cliff,rocks};
 }

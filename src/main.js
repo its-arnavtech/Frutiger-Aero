@@ -1,15 +1,15 @@
 import './style.css';
 import { createWorld } from './world';
 import { createAmbience } from './audio';
-import { clamp } from './journey';
+import { clamp, places } from './journey';
 
 const $=s=>document.querySelector(s);
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 const scrubber=$('#scrubber'),playButton=$('#play'),soundButton=$('#sound');
 let progress=0,target=0,playing=false,last=performance.now(),world,atmosphere,frameId;
 let pointer={x:0,y:0},pointerTarget={x:0,y:0};
-const ambience=createAmbience();
-const scrollRange=()=>document.documentElement.scrollHeight-innerHeight;
+const ambience=createAmbience(),FLIGHT_SECONDS=170;
+const scrollRange=()=>Math.max(1,document.documentElement.scrollHeight-innerHeight);
 function seek(value){target=clamp(value);window.scrollTo({top:target*scrollRange(),behavior:'instant'});}
 function setPlaying(value){playing=value;playButton.setAttribute('aria-pressed',String(value));playButton.setAttribute('aria-label',value?'Pause journey':'Play journey');}
 function notice(message){$('#notice').textContent=message;$('#notice').classList.add('visible');setTimeout(()=>$('#notice').classList.remove('visible'),4500);}
@@ -21,7 +21,13 @@ scrubber.addEventListener('input',()=>{setPlaying(false);seek(Number(scrubber.va
 playButton.addEventListener('click',()=>{if(progress>.999)seek(0);setPlaying(!playing);});
 $('#replay').addEventListener('click',()=>{setPlaying(false);seek(0);});
 $('#home').addEventListener('click',()=>{setPlaying(false);seek(0);});
-document.querySelectorAll('.waypoint').forEach(button=>button.addEventListener('click',()=>{setPlaying(false);seek(Number(button.dataset.progress));}));
+// The dots and timeline marks are the named places along the flight.
+const waypoints=places.map(place=>{
+ const button=document.createElement('button');button.className='waypoint';button.title=place.name;button.setAttribute('aria-label',place.name);button.append(document.createElement('span'));
+ button.addEventListener('click',()=>{setPlaying(false);seek(place.progress);});$('.waypoints').append(button);
+ if(place.progress>0&&place.progress<1){const mark=document.createElement('span');mark.className='timeline-marker';mark.style.left=`${place.progress*100}%`;$('.timeline').append(mark);}
+ return button;
+});
 soundButton.addEventListener('click',async()=>{try{const enabled=await ambience.toggle();soundButton.setAttribute('aria-pressed',String(enabled));soundButton.setAttribute('aria-label',enabled?'Mute ambient sound':'Enable ambient sound');}catch{notice('Ambient sound is unavailable in this browser.');}});
 $('#fullscreen').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{notice('Fullscreen is unavailable in this browser.');}});
 addEventListener('fullscreenchange',()=>$('#fullscreen').setAttribute('aria-label',document.fullscreenElement?'Exit fullscreen':'Enter fullscreen'));
@@ -37,7 +43,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnim
 
 function frame(now){
  const dt=Math.min((now-last)/1000,.05);last=now;
- if(playing){seek(target+dt/95);if(target>=1)setPlaying(false);}
+ if(playing){seek(target+dt/FLIGHT_SECONDS);if(target>=1)setPlaying(false);}
  const ease=reducedMotion.matches?1:1-Math.exp(-dt*7.5);
  progress+=(target-progress)*ease;
  if(Math.abs(progress-target)<.000005)progress=target;
@@ -47,13 +53,14 @@ function frame(now){
  ambience.update(0);
  scrubber.value=String(Math.round(progress*1000));scrubber.style.setProperty('--progress',`${progress*100}%`);
  $('#scroll-hint').style.opacity=progress<.025?'0.9':'0';
- document.querySelectorAll('.waypoint').forEach((button,index)=>{const active=index===(progress<.32?0:progress<.73?1:2);button.classList.toggle('active',active);button.setAttribute('aria-current',active?'step':'false');});
+ const here=places.findLastIndex(place=>place.progress<=progress+.012);
+ waypoints.forEach((button,index)=>{const active=index===here;button.classList.toggle('active',active);button.setAttribute('aria-current',active?'step':'false');});
  frameId=requestAnimationFrame(frame);
 }
 
 async function init(){
  target=clamp(scrollY/scrollRange());progress=target;
- try{world=await createWorld($('#world'));}catch(error){console.error('World renderer unavailable:',error);$('#world').style.display='none';$('#fallback').textContent='This 3D world needs WebGL. Please enable hardware acceleration or open it in another browser.';}
+ try{world=await createWorld($('#world'));if(import.meta.env.DEV)window.__aero=world;}catch(error){console.error('World renderer unavailable:',error);$('#world').style.display='none';$('#fallback').textContent='This 3D world needs WebGL. Please enable hardware acceleration or open it in another browser.';}
  try{const {createAtmosphere}=await import('./atmosphere');atmosphere=createAtmosphere();}catch(error){console.warn('Optional atmosphere unavailable:',error);}
  $('#loading').classList.add('loaded');last=performance.now();frameId=requestAnimationFrame(frame);
 }

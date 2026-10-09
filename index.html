@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#62cbe5" />
-    <meta name="description" content="An endless summer, somewhere inside a dream. A scroll-driven Frutiger Aero world." />
+    <meta name="description" content="An endless summer, somewhere inside a dream. Scroll to fly through a Frutiger Aero city of glass, water and gardens." />
     <title>Aerō — a world to drift through</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body>
-    <main id="experience" aria-label="A scroll-controlled journey through a Frutiger Aero world">
+    <main id="experience" aria-label="A scroll-controlled flight through a Frutiger Aero city">
       <div id="fallback"></div>
-      <canvas id="world" aria-label="A live 3D archipelago. Scroll to fly between islands, through the gateway, beneath the bridge, and around the floating garden."></canvas>
+      <canvas id="world" aria-label="A live 3D city of glass towers on a turquoise lagoon. Scroll to fly along the canal, through the gateway, around the floating garden and out over the islands."></canvas>
       <div id="atmosphere" aria-hidden="true"></div>
       <div class="vignette" aria-hidden="true"></div>
       <div id="loading" aria-live="polite"><div class="loading-orb"></div><span>Entering a little daydream</span></div>
@@ -22,15 +22,11 @@
           <button id="fullscreen" class="glass-button" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button>
         </div>
       </header>
-      <nav class="waypoints" aria-label="Move along the flight path">
-        <button class="waypoint active" data-progress="0" aria-label="Glass lagoon" title="Glass lagoon"><span></span></button>
-        <button class="waypoint" data-progress="0.49" aria-label="Floating garden" title="Floating garden"><span></span></button>
-        <button class="waypoint" data-progress="1" aria-label="Island overlook" title="Island overlook"><span></span></button>
-      </nav>
+      <nav class="waypoints" aria-label="Move along the flight path"></nav>
       <div id="scroll-hint" aria-hidden="true"><span class="mouse"><i></i></span><span>scroll to drift</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4"/></svg></div>
       <footer class="transport">
         <button id="play" class="glass-button" aria-label="Play journey" aria-pressed="false" title="Play / pause (Space)"><svg class="play-icon" viewBox="0 0 24 24"><path d="m9 5 11 7-11 7V5Z"/></svg><svg class="pause-icon" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg></button>
-        <div class="timeline"><input id="scrubber" type="range" min="0" max="1000" value="0" aria-label="Journey progress"/><span class="timeline-marker" style="left:49%"></span></div>
+        <div class="timeline"><input id="scrubber" type="range" min="0" max="1000" value="0" aria-label="Journey progress"/></div>
         <button id="replay" class="glass-button" aria-label="Restart journey" title="Restart"><svg viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6"/></svg></button>
       </footer>
       <div id="notice" role="status"></div>
