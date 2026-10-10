@@ -212,3 +212,88 @@ export function linkPoint(link, k) {
 // The footbridge that arches over the canal from lawn to lawn.
 export const footbridge = [[-34, 2.75, -33], [-27, 6.9, -35], [-15, 10.7, -39], [0, 12.1, -42], [14, 10.3, -48], [24, 6.7, -53], [31, 2.85, -57]];
 export const gate = { x: 0, y: 7.3, z: 10, radius: 7.4 };
+
+// ---- Boats -----------------------------------------------------------------
+export const boatKinds = {
+  launch: { length: 9.6, beam: 2.9, top: 2.9 },
+  tender: { length: 5.4, beam: 1.9, top: 1.4 },
+  sloop: { length: 9.4, beam: 2.9, top: 13.6 },
+};
+
+// Open water with room to spare: no bank, island, podium, pier or ring within reach.
+export function openWater(x, z, reach) {
+  if (towers.some(t => Math.hypot(x - t.x, z - t.z) < t.radius + 3.4 + reach)) return false;
+  if (skyline.some(t => Math.hypot(x - t.x, z - t.z) < t.radius + reach)) return false;
+  if (Math.abs(Math.hypot(x - basin.x, z - basin.z) - 20.3) < 2.7 + reach) return false;
+  for (const side of [-1, 1]) if (Math.hypot(x - gate.x - side * (gate.radius - .8), z - gate.z) < 1.5 + reach) return false;
+  for (let i = 0; i <= 8; i++) { const a = i / 8 * TAU, r = i < 8 ? reach : 0; if (ground(x + Math.cos(a) * r, z + Math.sin(a) * r).kind !== 'water') return false; }
+  return true;
+}
+
+// A closed course through [x, z] points, sampled about once a metre.
+function course(points) {
+  const curve = new THREE.CatmullRomCurve3(points.map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
+  const count = Math.round(curve.getLength()), samples = curve.getSpacedPoints(count).slice(0, count).map(p => ({ x: p.x, z: p.z }));
+  return { samples, length: curve.getLength(), step: curve.getLength() / count };
+}
+export function courseAt(route, distance) {
+  const count = route.samples.length, at = ((distance / route.step) % count + count) % count, i = Math.floor(at), k = at - i;
+  const a = route.samples[i], b = route.samples[(i + 1) % count], dx = b.x - a.x, dz = b.z - a.z, length = Math.hypot(dx, dz) || 1;
+  return { x: a.x + dx * k, z: a.z + dz * k, tx: dx / length, tz: dz / length };
+}
+
+export const fleet = [];
+{
+  const random = rng(4242), gateAt = nearestFrame(gate.x, gate.z).frame.s;
+  const sail = (kind, route, count, speed) => { for (let i = 0; i < count; i++) fleet.push({ kind, course: route, start: route.length * (i + random() * .5) / count, speed, phase: random() * TAU }); };
+
+  // Launches run a circuit of the canal, keeping right, and draw together to
+  // pass between the feet of the gateway.
+  const lane = t => 2.6 + 4.4 * smoothstep(8, 26, Math.abs(t * canalLength - gateAt));
+  const along = (side, t) => { const f = frameExact(t), o = side * lane(t); return [f.x + f.nx * o, f.z + f.nz * o]; };
+  const beyond = (t, ahead, across) => { const f = frameExact(t), d = t > .5 ? 1 : -1; return [f.x + f.tx * ahead * d + f.nx * across, f.z + f.tz * ahead * d + f.nz * across]; };
+  const circuit = [];
+  for (let i = 0; i <= 24; i++) circuit.push(along(1, .02 + i * .04));
+  circuit.push(beyond(1, 7, 6.4), beyond(1, 14, 0), beyond(1, 7, -6.4));
+  for (let i = 24; i >= 0; i--) circuit.push(along(-1, .02 + i * .04));
+  // At the southern end they swing out around the small island off the canal mouth.
+  circuit.push([-6, 120], [-13, 127], [-28, 128], [-48, 134], [-56, 150], [-46, 166], [-24, 171], [-6, 163], [7, 146], [10.5, 128]);
+  sail('launch', course(circuit), 8, 2.4);
+
+  // One more circles each park island, wherever there is room to pass.
+  for (const island of islands.filter(i => !i.wild && !i.garden && i.rx > 15)) {
+    for (const offset of [9, 7.5, 6, 5]) {
+      const ring = Array.from({ length: 36 }, (_, i) => { const a = -i / 36 * TAU, edge = islandEdge(island, a) * (RIM + .045); return [island.x + Math.cos(a) * (island.rx * edge + offset), island.z + Math.sin(a) * (island.rz * edge + offset)]; });
+      if (!ring.every(([x, z]) => openWater(x, z, 2.6))) continue;
+      sail('launch', course(ring), 1, 2.1); break;
+    }
+  }
+
+  // Sloops sail the open lagoon around the city, standing off whatever lies
+  // nearest: a boat cannot follow every notch in the shore.
+  const bearings = 72, clear = Array.from({ length: bearings }, (_, i) => {
+    const a = i / bearings * TAU; let r = 150;
+    while (r < 330 && !openWater(Math.sin(a) * r, -45 + Math.cos(a) * r, 18)) r += 5;
+    return r;
+  });
+  const near = [-3, -2, -1, 0, 1, 2, 3];
+  let passage;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const widest = clear.map((_, i) => Math.max(...near.map(k => clear[(i + k + bearings) % bearings])));
+    const offing = widest.map((_, i) => near.reduce((sum, k) => sum + widest[(i + k + bearings) % bearings], 0) / near.length);
+    passage = course(offing.map((r, i) => { const a = i / bearings * TAU; return [Math.sin(a) * r, -45 + Math.cos(a) * r]; }));
+    // Wherever the rounded course still crowds something, stand further off there.
+    const tight = passage.samples.filter(p => !openWater(p.x, p.z, 6));
+    if (!tight.length) break;
+    for (const p of tight) clear[(Math.round(Math.atan2(p.x, p.z + 45) / TAU * bearings) + bearings) % bearings] += 2;
+  }
+  sail('sloop', passage, 9, 1.15);
+
+  // Tenders lie moored along both quays of the canal.
+  for (let i = 0; i < 16; i++) {
+    const t = .075 + i * .057, side = i % 2 ? 1 : -1, f = frameExact(t), turn = random() < .5 ? 1 : -1;
+    if (Math.abs(f.s - gateAt) < 15) continue;
+    const o = side * (bankInner(side, t) - 1.8);
+    fleet.push({ kind: 'tender', x: f.x + f.nx * o, z: f.z + f.nz * o, heading: [f.tx * turn, f.tz * turn], phase: random() * TAU });
+  }
+}

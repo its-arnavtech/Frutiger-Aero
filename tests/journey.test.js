@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cameraAt, lookAt, rollAt, routeLength, places } from '../src/journey.js';
-import { DECK, ground, towers, towerRadius, towerTop, links, linkPoint, spheres, pods, footbridge, gate, basin, islands } from '../src/layout.js';
+import { DECK, ground, towers, towerRadius, towerTop, links, linkPoint, spheres, pods, footbridge, gate, basin, islands, fleet, boatKinds, openWater } from '../src/layout.js';
 
 const STEPS = 6000;
 const route = Array.from({ length: STEPS + 1 }, (_, i) => { const c = cameraAt(i / STEPS); return { p: i / STEPS, x: c.x, y: c.y, z: c.z }; });
@@ -53,6 +53,27 @@ test('the flight clears every tower, bridge, sphere and pod', () => {
     for (let i = 1; i < footbridge.length; i++) assert.ok(segmentDistance(c, footbridge[i - 1], footbridge[i]) > 4.5, `Footbridge too close at ${c.p}`);
     // The gateway is a hoop: pass cleanly through its middle or well outside it.
     if (Math.abs(c.z - gate.z) < 1.2) { const d = Math.hypot(c.x - gate.x, c.y - gate.y); assert.ok(d < gate.radius - 3 || d > gate.radius + 4, `Gateway rim too close at ${c.p}`); }
+  }
+});
+
+test('boats keep to open water and the flight keeps clear of them', () => {
+  const courses = new Map();
+  for (const boat of fleet) {
+    const kind = boatKinds[boat.kind];
+    if (boat.course) courses.set(boat.course, kind);
+    else {
+      assert.equal(ground(boat.x, boat.z).kind, 'water', 'A moored boat is on the water');
+      for (const c of route) assert.ok(Math.hypot(Math.max(0, Math.hypot(c.x - boat.x, c.z - boat.z) - kind.length / 2), Math.max(0, c.y - kind.top)) > 2.5, `Moored boat too close at ${c.p}`);
+    }
+  }
+  assert.ok(courses.size >= 3 && fleet.length >= 25);
+  for (const [course, kind] of courses) {
+    for (const p of course.samples) assert.ok(openWater(p.x, p.z, kind.beam / 2 + .4), `A ${kind.length} m boat would run aground at ${p.x.toFixed(0)},${p.z.toFixed(0)}`);
+    for (const c of route) {
+      let nearest = Infinity;
+      for (const p of course.samples) nearest = Math.min(nearest, (c.x - p.x) ** 2 + (c.z - p.z) ** 2);
+      assert.ok(Math.hypot(Math.max(0, Math.sqrt(nearest) - kind.beam / 2), Math.max(0, c.y - kind.top)) > (kind.top > 10 ? 6 : 2.5), `Boat course too close at ${c.p}`);
+    }
   }
 });
 

@@ -71,7 +71,7 @@ export function buildCity({ add, plantings }) {
     add('silver', rod([x, y, z], [x, y + length, z], radius, { top: .015, sides: 6 }), { detail: true });
     add('white', new THREE.SphereGeometry(radius * 2.1, 10, 8), { at: [x, y + length * .42, z], detail: true });
   };
-  const bayOptions = (tower, bays, lift = 0) => ({ bays, floor: 3, lift, seed: tower.seed, shift: [Math.floor(tower.seed * 3) % 12, Math.floor(tower.seed * 5) % 11] });
+  const bayOptions = (tower, bays, lift = 0) => ({ bays, floor: 3, lift, seed: tower.seed });
   const baysFor = radius => Math.max(8, Math.round(TAU * radius / 2.67));
 
   function podium(tower, lip = tower.radius) {
@@ -199,7 +199,7 @@ export function buildCity({ add, plantings }) {
     const body = far.spindle
       ? Array.from({ length: 9 }, (_, i) => { const k = i / 8; return [Math.max(.05, far.radius * (.8 + .28 * Math.sin(Math.PI * Math.pow(k, .8))) * Math.sqrt(1 - Math.pow(k, 3.2))), far.height * k]; })
       : [[far.radius, -1], [far.radius * .9, far.height], ...arc(far.radius * .9, far.height, far.radius * 1.5, 4).slice(1)];
-    add('glass', lathe(body, { segments: 14, facade: { bays: baysFor(far.radius), floor: 3, seed: far.x, shift: [0, 0] } }), { at: [far.x, 0, far.z], tint: TINTS[far.tint] });
+    add('glass', lathe(body, { segments: 14, facade: { bays: baysFor(far.radius), floor: 3, seed: far.x } }), { at: [far.x, 0, far.z], tint: TINTS[far.tint] });
   }
 
   // ---- Banks: a thick porcelain quay around each garden peninsula ----------
@@ -321,7 +321,7 @@ export function buildCity({ add, plantings }) {
       add(finish, surface(rows, { away: { x, y, z } }), { detail: true });
     };
     band('amber', -.95, -.2, -.16, .2); band('azure', -.1, .95, -.16, .2);
-    add('glass', lathe([[r * .96, y + r * .27], [r * .86, y + r * .42]], { segments: 30, facade: { bays: 16, floor: 3, seed: x, shift: [0, 0] } }), { at: [x, 0, z], tint: 0x8fd0ea });
+    add('glass', lathe([[r * .96, y + r * .27], [r * .86, y + r * .42]], { segments: 30, facade: { bays: 16, floor: 3, seed: x } }), { at: [x, 0, z], tint: 0x8fd0ea });
     for (let i = 0; i < 16; i++) { const a = i / 16 * TAU; plantings.vines.push({ x: x + Math.cos(a) * r * .72, y: y - r * .55, z: z + Math.sin(a) * r * .72, angle: a, drop: 2 + random() * 3.5 }); }
   }
 

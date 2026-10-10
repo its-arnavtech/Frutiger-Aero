@@ -10,7 +10,7 @@ const sphere = [6, 27, -158];
 export const stops = [
   // Arrival over the open lagoon, then down into the canal.
   { at: [-10, 9, 172], see: [0, 20, 70], name: 'Lagoon' },
-  { at: [-3, 5.5, 128] },
+  { at: [-1.5, 6.2, 128] },
   { at: [.5, 4.4, 92] },
   { at: [0, 4.4, 56] },
   { at: [0, 5.6, 30] },

@@ -7,6 +7,7 @@ import { cityFinishes, buildCity } from './city.js';
 import { loadSurfaces, landFinishes, buildLandscape } from './landscape.js';
 import { createVegetation } from './vegetation.js';
 import { createWater } from './water.js';
+import { createBoats } from './boats.js';
 import { createCinema } from './cinema.js';
 import { spheres, rng } from './layout.js';
 
@@ -114,6 +115,7 @@ export async function createWorld(canvas) {
   const vegetation = await createVegetation({ scene, plantings, renderer });
   const water = createWater({ renderer, scene, normals: waterNormals, sky, sunDirection, sunColor: 0xfff6e2 });
   const cascade = createCascade(scene);
+  const boats = createBoats({ scene, sunDirection });
   createHaze(scene, scene.fog.color);
 
   // Loose bubbles drift on the breeze between the towers.
@@ -133,6 +135,7 @@ export async function createWorld(canvas) {
   if (off.has('bloom')) cinema.quality.bloom = false;
   if (off.has('veg')) vegetation.root.visible = false;
   if (off.has('city')) city.visible = false;
+  if (off.has('boats')) boats.root.visible = false;
   if (off.has('water')) water.mesh.visible = false;
   if (off.has('fog')) scene.fog = null;
   function aim(progress, pointer) {
@@ -166,7 +169,7 @@ export async function createWorld(canvas) {
     if (!reducedMotion) liveTime += dt;
     const time = liveTime * .38 + progress * 60;
     aim(progress, pointer);
-    vegetation.update(time, camera);
+    vegetation.update(time, camera); boats.update(time);
     water.material.uniforms.time.value = time; cascade.uniforms.time.value = time;
     drifting.forEach((b, i) => {
       pose.position.set(b.x + Math.sin(time * .12 + b.phase) * 1.4, b.y + Math.sin(time * .23 + b.phase) * .9, b.z + Math.cos(time * .1 + b.phase) * 1.2);
@@ -180,7 +183,7 @@ export async function createWorld(canvas) {
     if (elapsed > 1000) {
       Object.assign(canvas.dataset, {
         camera: camera.position.toArray().map(v => v.toFixed(2)).join(','), fov: String(camera.fov), fps: String(Math.round(frames * 1000 / elapsed)),
-        triangles: String(renderer.info.render.triangles), calls: String(renderer.info.render.calls), trees: String(vegetation.stats.trees),
+        triangles: String(renderer.info.render.triangles), calls: String(renderer.info.render.calls), trees: String(vegetation.stats.trees), boats: String(boats.stats.boats),
         pixelRatio: String(pixelRatio), economy: String(step),
       });
       frames = 0; sampleTime = performance.now();
@@ -208,5 +211,5 @@ export async function createWorld(canvas) {
   }
   fit();
   function resize() { camera.aspect = Math.max(1, innerWidth) / Math.max(1, innerHeight); camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); resizeTargets(); fit(); }
-  return { render, resize, renderer, scene, camera, cinema, meshes, switches: off, pin(view) { fixed = view; } };
+  return { render, resize, renderer, scene, camera, cinema, meshes, boats, switches: off, pin(view) { fixed = view; } };
 }

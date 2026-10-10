@@ -28,7 +28,8 @@ function assemble(positions, normals, uvs, indices, extra = {}) {
 }
 
 // Surface of revolution about +Y. profile is [[radius, y], ...] from bottom to
-// top. A facade option lays out window bays for the glass shader.
+// top. A facade option lays out window bays for the glass shader, whose uv
+// channel then carries the size of a bay in metres rather than a texture address.
 export function lathe(profile, { segments = 32, facade, squash = 1 } = {}) {
   const rows = profile.length, positions = [], normals = [], uvs = [], indices = [], bays = [];
   const lengths = [0];
@@ -43,7 +44,7 @@ export function lathe(profile, { segments = 32, facade, squash = 1 } = {}) {
       normals.push(nr * cos, ny, nr * sin);
       if (facade) {
         const u = i / segments * facade.bays, v = (lengths[j] + (facade.lift || 0)) / facade.floor;
-        uvs.push((u + facade.shift[0]) / 12, (v + facade.shift[1]) / 11); bays.push(u, v, TAU / facade.bays, facade.seed);
+        uvs.push(profile[j][0] * TAU / facade.bays, facade.floor); bays.push(u, v, TAU / facade.bays, facade.seed);
       } else uvs.push(i / segments, lengths[j]);
     }
   }
