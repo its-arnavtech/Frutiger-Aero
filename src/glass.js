@@ -22,13 +22,24 @@ export function createSky(renderer, photograph, turn) {
   // Matches how the renderer turns a cube background.
   const matrix = new THREE.Matrix3().setFromMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0, -turn, 0)));
   const uniforms = { skyCube: { value: target.texture }, skyTurn: { value: matrix }, cityCube: { value: target.texture } };
-  // Photograph the built city once, from above the canal, for use in reflections.
-  function capture(scene, position) {
+  // Photograph the built city once, from above the canal. The sharp exposure is
+  // what glass reflects. A second, taken against the measured light of the HDR
+  // sky, becomes the light that every surface receives: after it, the water
+  // throws turquoise up under the quays and soffits, and lawns tint the walls
+  // beside them, as bounced light does.
+  function capture(scene, position, measuredSky) {
     const probe = new THREE.WebGLCubeRenderTarget(768, { type: THREE.HalfFloatType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
     const camera = new THREE.CubeCamera(1, 2000, probe);
     camera.position.copy(position); scene.add(camera);
     camera.update(renderer, scene);
-    scene.remove(camera); uniforms.cityCube.value = probe.texture;
+    uniforms.cityCube.value = probe.texture;
+    const light = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType }), { background, backgroundIntensity } = scene;
+    camera.renderTarget = light; scene.background = measuredSky; scene.backgroundIntensity = 1;
+    camera.update(renderer, scene);
+    scene.background = background; scene.backgroundIntensity = backgroundIntensity; scene.remove(camera);
+    const pmrem = new THREE.PMREMGenerator(renderer), surroundings = pmrem.fromCubemap(light.texture).texture;
+    pmrem.dispose(); light.dispose();
+    return surroundings;
   }
   return { cube: target.texture, rotation, uniforms, capture };
 }
@@ -121,7 +132,7 @@ export function facadeGlass({ facade, sky, f0 = .19, glow = .82 }) {
         vec2 rows = facadeRows[int(mod(cell.y + shift.y, 11.))];
         vec2 roomUv = vec2((mod(cell.x + shift.x, 12.) + mix(.07, .93, hit.x)) / 12., mix(rows.x, rows.y, hit.y));
         vec2 smoothUv = bay / vec2(12., 11.);
-        vec3 photo = textureGrad(facadeMap, roomUv, dFdx(smoothUv), dFdy(smoothUv)).rgb;
+        vec3 photo = textureGrad(facadeMap, roomUv, dFdx(smoothUv) * .7, dFdy(smoothUv) * .7).rgb;
         float lamps = mix(step(.8, suite.x), .2, facadeFar), dark = mix(step(suite.x, .08), .08, facadeFar);
         float inside = step(depth, .9999), onSide = inside * step(reach.x, reach.y), onFlat = inside - onSide, onCeiling = onFlat * step(0., run.y);
         // Walls, floor and ceiling carry on from the edges of the photograph.

@@ -3,10 +3,14 @@ import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 
 // The film pipeline. The world is rendered once into an HDR target with depth;
-// ambient occlusion and a soft optical bloom are derived from it, and a final
-// pass grades the picture for the display. Edges are smoothed either by
+// ambient occlusion and a soft optical bloom are derived from it, and a grading
+// pass prepares the picture for the display. Edges are smoothed either by
 // multisampling, on GPUs with room for it, or by FXAA on the graded picture,
-// which costs integrated graphics far less and so buys a sharper resolution.
+// which costs integrated graphics far less.
+//
+// The world may be drawn at less than the screen's resolution. The last pass
+// then enlarges it to the canvas with a bicubic filter and restores edge
+// contrast, so textures arrive crisp instead of being stretched by the browser.
 const vertexShader = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }';
 const pass = (fragmentShader, uniforms, extra = {}) => new THREE.ShaderMaterial({ vertexShader, fragmentShader, uniforms, depthTest: false, depthWrite: false, toneMapped: false, ...extra });
 
@@ -102,11 +106,38 @@ const gradeShader = /* glsl */`
     gl_FragColor = vec4(c + (grain - .5) / 255., 1.);
   }`;
 
+const presentShader = /* glsl */`
+  uniform sampler2D tImage; uniform vec2 sourceSize; uniform float sharpness;
+  varying vec2 vUv;
+  // Catmull-Rom reconstruction from five bilinear taps; the four corner taps
+  // of the full kernel carry too little weight to be worth their cost.
+  vec3 bicubic(vec2 uv) {
+    vec2 position = uv * sourceSize, centre = floor(position - .5) + .5, f = position - centre;
+    vec2 w0 = f * (-.5 + f * (1. - .5 * f)), w1 = 1. + f * f * (-2.5 + 1.5 * f), w2 = f * (.5 + f * (2. - 1.5 * f)), w3 = f * f * (-.5 + .5 * f);
+    vec2 w12 = w1 + w2, t0 = (centre - 1.) / sourceSize, t3 = (centre + 2.) / sourceSize, t12 = (centre + w2 / w12) / sourceSize;
+    vec4 sum = vec4(texture2D(tImage, vec2(t12.x, t0.y)).rgb, 1.) * (w12.x * w0.y) + vec4(texture2D(tImage, vec2(t0.x, t12.y)).rgb, 1.) * (w0.x * w12.y)
+      + vec4(texture2D(tImage, t12).rgb, 1.) * (w12.x * w12.y) + vec4(texture2D(tImage, vec2(t3.x, t12.y)).rgb, 1.) * (w3.x * w12.y)
+      + vec4(texture2D(tImage, vec2(t12.x, t3.y)).rgb, 1.) * (w12.x * w3.y);
+    return sum.rgb / sum.a;
+  }
+  void main() {
+    vec3 c = bicubic(vUv); vec2 texel = 1. / sourceSize;
+    vec3 n = texture2D(tImage, vUv + vec2(0., texel.y)).rgb, s = texture2D(tImage, vUv - vec2(0., texel.y)).rgb;
+    vec3 e = texture2D(tImage, vUv + vec2(texel.x, 0.)).rgb, w = texture2D(tImage, vUv - vec2(texel.x, 0.)).rgb;
+    // Contrast-adaptive sharpening: as much as each pixel can take without
+    // ringing past the brightest and darkest of its neighbours.
+    vec3 low = min(min(n, s), min(e, w)), high = max(max(n, s), max(e, w));
+    vec3 limit = max(-min(low, c) / (4. * high + 1e-4), (1. - max(high, c)) / (4. * low - 4. - 1e-4));
+    float lobe = max(-.1875, min(max(limit.r, max(limit.g, limit.b)), 0.)) * sharpness;
+    gl_FragColor = vec4(clamp((lobe * (n + s + e + w) + c) / (4. * lobe + 1.), 0., 1.), 1.);
+  }`;
+
 export function createCinema(renderer, scene, camera) {
   const quad = new FullScreenQuad(), size = new THREE.Vector2(), LEVELS = 5;
-  const quality = { samples: 0, occlusion: true, bloom: true, glow: .05 };
+  // scale is the resolution the world is drawn at, as a share of the canvas.
+  const quality = { samples: 0, occlusion: true, bloom: true, glow: .05, scale: 1, sharpness: .7 };
   const half = { type: THREE.HalfFloatType, depthBuffer: false };
-  let sceneTarget, graded, aoA, aoB, mips = [];
+  let sceneTarget, graded, smoothed, aoA, aoB, mips = [];
 
   const occlude = pass(occlusionShader, { tDepth: { value: null }, projection: { value: camera.projectionMatrix }, unprojection: { value: camera.projectionMatrixInverse }, texel: { value: new THREE.Vector2() }, radius: { value: 2.2 }, strength: { value: 1 } }, { defines: { SAMPLES: 8 } });
   const soften = pass(softenShader, { tOcclusion: { value: null }, tDepth: { value: null }, stride: { value: new THREE.Vector2() }, planes: { value: new THREE.Vector2(camera.near, camera.far) } });
@@ -114,15 +145,17 @@ export function createCinema(renderer, scene, camera) {
   const grow = pass(growShader, { tSource: { value: null }, texel: { value: new THREE.Vector2() }, blend: { value: .62 } }, { transparent: true });
   const grade = pass(gradeShader, { tScene: { value: null }, tOcclusion: { value: null }, tBloom: { value: null }, exposure: { value: 1 }, occlusion: { value: 1 }, bloom: { value: .1 }, saturation: { value: 1.06 }, contrast: { value: .2 } });
   const smooth = pass(FXAAShader.fragmentShader, { tDiffuse: { value: null }, resolution: { value: new THREE.Vector2() } });
+  const present = pass(presentShader, { tImage: { value: null }, sourceSize: { value: new THREE.Vector2() }, sharpness: { value: quality.sharpness } });
   const white = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); white.needsUpdate = true;
   const black = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); black.needsUpdate = true;
 
   function build() {
-    for (const target of [sceneTarget, graded, aoA, aoB, ...mips]) target?.dispose();
+    for (const target of [sceneTarget, graded, smoothed, aoA, aoB, ...mips]) target?.dispose();
     renderer.getDrawingBufferSize(size);
-    const w = Math.max(2, size.x), h = Math.max(2, size.y), depth = new THREE.DepthTexture(w, h);
+    const w = Math.max(2, Math.round(size.x * quality.scale)), h = Math.max(2, Math.round(size.y * quality.scale)), depth = new THREE.DepthTexture(w, h);
     sceneTarget = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: quality.samples, depthTexture: depth });
-    graded = quality.samples ? null : new THREE.WebGLRenderTarget(w, h, { depthBuffer: false });
+    graded = new THREE.WebGLRenderTarget(w, h, { depthBuffer: false });
+    smoothed = quality.samples ? null : new THREE.WebGLRenderTarget(w, h, { depthBuffer: false });
     const hw = Math.ceil(w / 2), hh = Math.ceil(h / 2);
     aoA = new THREE.WebGLRenderTarget(hw, hh, { depthBuffer: false }); aoB = new THREE.WebGLRenderTarget(hw, hh, { depthBuffer: false });
     mips = Array.from({ length: LEVELS }, (_, i) => new THREE.WebGLRenderTarget(Math.max(1, w >> (i + 1)), Math.max(1, h >> (i + 1)), half));
@@ -162,13 +195,17 @@ export function createCinema(renderer, scene, camera) {
       grade.uniforms.tOcclusion.value = quality.occlusion ? aoA.texture : white;
       grade.uniforms.tBloom.value = quality.bloom ? mips[0].texture : black;
       grade.uniforms.bloom.value = quality.bloom ? quality.glow : 0;
-      if (graded) {
-        draw(grade, graded);
+      draw(grade, graded);
+      if (smoothed) {
         smooth.uniforms.tDiffuse.value = graded.texture; smooth.uniforms.resolution.value.set(1 / graded.width, 1 / graded.height);
-        draw(smooth, null);
-      } else draw(grade, null);
+        draw(smooth, smoothed);
+      }
+      present.uniforms.tImage.value = (smoothed || graded).texture; present.uniforms.sourceSize.value.set(graded.width, graded.height);
+      present.uniforms.sharpness.value = quality.sharpness;
+      draw(present, null);
     },
     resize: build,
+    setScale(scale) { quality.scale = scale; },
     setSamples(samples) { quality.samples = samples; build(); },
     grade: grade.uniforms, occlude: occlude.uniforms,
   };

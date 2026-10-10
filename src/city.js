@@ -10,32 +10,54 @@ const UP = new THREE.Vector3(0, 1, 0);
 const TINTS = [0xffffff, 0xc8e6ff, 0xb8f5e2, 0xdfe3ff, 0xa6dcea];
 
 // Pale stone paving with fine joints, drawn from the deck's own coordinates.
-function pavingMaterial() {
-  const material = new THREE.MeshStandardMaterial({ color: 0xb9c3c6, roughness: .6, metalness: .02, envMapIntensity: .8 });
+// Promenades are paved in honed, pale marble. Every slab is cut from a different
+// part of a scanned rock face, turned one of four ways, so no two match; the
+// scan's fracture lines become the veining and its relief the stone's surface.
+function pavingMaterial(stone) {
+  const material = new THREE.MeshStandardMaterial({ color: 0xffffff, normalMap: stone.normal, normalScale: new THREE.Vector2(.16, .16), roughness: .5, metalness: 0, envMapIntensity: .9 });
   material.onBeforeCompile = shader => {
+    shader.uniforms.pavingStone = { value: stone.color };
     shader.vertexShader = `varying vec2 vPaving;\n${shader.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\nvPaving = uv;');
-    shader.fragmentShader = `varying vec2 vPaving;\n${shader.fragmentShader}`.replace('#include <color_fragment>', `#include <color_fragment>
+    shader.fragmentShader = `varying vec2 vPaving; uniform sampler2D pavingStone;\n${shader.fragmentShader}`.replace('#include <color_fragment>', `#include <color_fragment>
       vec2 slab = vPaving / vec2(2.4, 1.2); slab.x += step(1., mod(floor(slab.y), 2.)) * .5;
       vec2 gap = abs(fract(slab) - .5), width = fwidth(slab) + vec2(.006, .012);
       float joint = max(smoothstep(.5 - width.x, .5, gap.x), smoothstep(.5 - width.y, .5, gap.y)) * saturate(1. - max(width.x, width.y) * 3.);
-      float tone = fract(sin(dot(floor(slab), vec2(12.9898, 78.233))) * 43758.5453);
-      diffuseColor.rgb *= (1. - .24 * joint) * (.94 + .1 * tone);`)
+      vec3 cut = fract(sin(vec3(dot(floor(slab), vec2(12.9898, 78.233)), dot(floor(slab), vec2(39.346, 11.135)), dot(floor(slab), vec2(73.156, 52.235)))) * 43758.5453);
+      vec2 within = (fract(slab) - .5) * vec2(2.4, 1.2) * (step(.5, cut.z) * 2. - 1.);
+      vec2 slabUv = within * .12 + cut.xy;
+      vec3 scan = texture2D(pavingStone, slabUv, -.6).rgb;
+      float vein = dot(scan, vec3(.4, .4, .2));
+      vec3 marble = mix(vec3(.6, .63, .65), vec3(.8, .82, .81), smoothstep(.03, .5, vein)) * mix(vec3(1.), scan / max(vein, .05), .08);
+      diffuseColor.rgb = marble * (1. - .32 * joint) * (.93 + .12 * cut.x);`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-      roughnessFactor = mix(.42, .7, fract(sin(dot(floor(vPaving / vec2(2.4, 1.2)), vec2(4.1, 9.7))) * 913.7));`);
+      roughnessFactor = mix(.6, .34, smoothstep(.05, .45, vein)) + .1 * cut.y;`)
+      .replace('#include <normal_fragment_maps>', THREE.ShaderChunk.normal_fragment_maps.replace('texture2D( normalMap, vNormalMapUv )', 'texture2D(normalMap, slabUv, -.6)'));
   };
   return material;
 }
 
-export function cityFinishes({ facade, sky, sun }) {
+export function cityFinishes({ facade, sky, sun, maps }) {
   // White architecture is assembled from glazed panels: fine joints, a breath of
   // tone from one panel to the next, and a faint tide mark where it meets the sea.
+  // Nothing built is perfectly flat or perfectly clean, so the glaze also has a
+  // slight orange-peel that breaks up its highlights, cloudy variation in its
+  // sheen, and pale streaks where rain has run down the walls.
   const porcelain = new THREE.MeshStandardMaterial({ color: 0xd9e0e3, roughness: .27, metalness: 0, envMapIntensity: 1 });
   porcelain.onBeforeCompile = shader => {
     shader.vertexShader = `varying vec3 vPanel; varying vec3 vPanelNormal;\n${shader.vertexShader}`
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPanel = (modelMatrix * vec4(transformed, 1.)).xyz; vPanelNormal = mat3(modelMatrix) * objectNormal;');
-    shader.fragmentShader = `varying vec3 vPanel; varying vec3 vPanelNormal;\n${shader.fragmentShader}`
+    shader.fragmentShader = `varying vec3 vPanel; varying vec3 vPanelNormal;
+      float panelHash(vec3 p) { p = fract(p * .3183099 + .1) * 17.; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+      float panelNoise(vec3 x) {
+        vec3 i = floor(x), f = fract(x); f = f * f * (3. - 2. * f);
+        return mix(mix(mix(panelHash(i), panelHash(i + vec3(1., 0., 0.)), f.x), mix(panelHash(i + vec3(0., 1., 0.)), panelHash(i + vec3(1., 1., 0.)), f.x), f.y),
+          mix(mix(panelHash(i + vec3(0., 0., 1.)), panelHash(i + vec3(1., 0., 1.)), f.x), mix(panelHash(i + vec3(0., 1., 1.)), panelHash(i + 1.), f.x), f.y), f.z);
+      }
+      ${shader.fragmentShader}`
       .replace('#include <color_fragment>', `#include <color_fragment>
       vec3 panelFacing = abs(normalize(vPanelNormal)), panel = vPanel / vec3(3.2, 1.45, 3.2);
+      float cloudy = panelNoise(vPanel * .45), streaks = panelNoise(vec3(vPanel.x * 1.1, vPanel.y * .09, vPanel.z * 1.1));
+      diffuseColor.rgb *= (.94 + .09 * cloudy) * (1. - .09 * smoothstep(.5, .9, streaks) * (1. - smoothstep(.45, .8, panelFacing.y)));
       vec3 panelWidth = fwidth(panel), joint = smoothstep(.5 - panelWidth * 1.3 - .004, vec3(.5), abs(fract(panel) - .5));
       // A joint only shows where its plane actually cuts across the surface.
       joint *= 1. - smoothstep(vec3(.55), vec3(.9), panelFacing);
@@ -45,13 +67,23 @@ export function cityFinishes({ facade, sky, sun }) {
       diffuseColor.rgb *= (1. - .2 * seam) * (.955 + .06 * tone);
       diffuseColor.rgb *= mix(vec3(.74, .83, .8), vec3(1.), smoothstep(.02, .9, vPanel.y + .25 * tone));`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-      roughnessFactor = mix(roughnessFactor + .1 * tone, .6, seam);`);
+      roughnessFactor = mix(roughnessFactor + .1 * tone + .16 * (cloudy - .4), .6, seam);`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      {
+        // Orange-peel: a fraction of a millimetre of unevenness, bump-mapped
+        // from noise and faded out before it would turn to shimmer.
+        float peel = panelNoise(vPanel * 11.) * .65 + panelNoise(vPanel * 31.) * .35;
+        vec2 rise = vec2(dFdx(peel), dFdy(peel)) * .0016 * saturate(1. - length(fwidth(vPanel)) * 9.);
+        vec3 sigmaX = dFdx(-vViewPosition), sigmaY = dFdy(-vViewPosition), r1 = cross(sigmaY, normal), r2 = cross(normal, sigmaX);
+        float det = dot(sigmaX, r1);
+        normal = normalize(abs(det) * normal - sign(det) * (rise.x * r1 + rise.y * r2));
+      }`);
   };
   const silver = new THREE.MeshStandardMaterial({ color: 0xc9d8dc, roughness: .24, metalness: .92, envMapIntensity: 1.1 });
   return {
     white: { material: porcelain },
     silver: { material: silver },
-    paving: { material: pavingMaterial() },
+    paving: { material: pavingMaterial(maps.rock) },
     glass: { material: facadeGlass({ facade, sky }), attributes: ['color', 'facade'] },
     clear: { material: clearGlass({ sky, sun, grid: 1, body: .13, base: .17, glint: .7 }), shadow: false, receive: false },
     rail: { material: clearGlass({ sky, sun, body: .1, glint: .25, side: THREE.DoubleSide }), shadow: false, receive: false },

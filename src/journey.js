@@ -3,9 +3,11 @@ import { Curve3 } from '@babylonjs/core/Maths/math.path.js';
 
 export const clamp = (v, min = 0, max = 1) => Math.max(min, Math.min(max, v));
 
-// One unbroken flight that wanders through the whole city. Each stop is where
-// the camera is; `see` names a subject to hold in frame, and stops without one
-// simply look along the way ahead. `name` marks the places the interface lists.
+// One unbroken flight that wanders through the whole city and returns to where
+// it began, so it can be flown round and round, forwards or backwards, without
+// end. Each stop is where the camera is; `see` names a subject to hold in
+// frame, and stops without one simply look along the way ahead. `name` marks
+// the places the interface lists.
 const sphere = [6, 27, -158];
 export const stops = [
   // Arrival over the open lagoon, then down into the canal.
@@ -54,16 +56,26 @@ export const stops = [
   { at: [18, 66, 70], see: [-10, 38, 30] },
   // Climbing away to see the whole city at once.
   { at: [-20, 76, 100], see: [-6, 34, 10] },
-  { at: [-46, 92, 150], see: [0, 34, -20] },
-  { at: [-62, 108, 205], see: [0, 40, -40], name: 'Overlook' },
+  { at: [-42, 92, 150], see: [0, 34, -20] },
+  { at: [-55, 108, 206], see: [0, 40, -40], name: 'Overlook' },
+  // A long turn out over the lagoon, sinking back to where the flight began,
+  // with the city held in view the whole way round.
+  { at: [-50, 113, 240], see: [0, 38, -30] },
+  { at: [-30, 105, 268], see: [0, 34, -10] },
+  { at: [0, 87, 264], see: [0, 30, 10], name: 'Descent' },
+  { at: [-2, 57, 238], see: [0, 26, 30] },
+  { at: [-9, 29, 206], see: [0, 22, 55] },
 ];
 
 const SPAN = 40;
-const points = Curve3.CreateCatmullRomSpline(stops.map(s => new Vector3(...s.at)), SPAN, false).getPoints();
+// The spline library begins a closed curve at the second point it is given, so
+// the stops are handed over starting from the last: sample i * SPAN is stop i.
+const loop = list => Curve3.CreateCatmullRomSpline([list.at(-1), ...list.slice(0, -1)], SPAN, true).getPoints();
+const points = loop(stops.map(s => new Vector3(...s.at)));
 const lengths = [0];
 for (let i = 1; i < points.length; i++) lengths.push(lengths[i - 1] + points[i].subtract(points[i - 1]).length());
 export const routeLength = lengths.at(-1);
-// Where along the journey each stop falls, from 0 to 1.
+// Where around the loop each stop falls, from 0 to 1.
 export const stopProgress = stops.map((_, i) => lengths[i * SPAN] / routeLength);
 export const places = stops.map((stop, i) => ({ name: stop.name, progress: stopProgress[i] })).filter(p => p.name);
 
@@ -72,30 +84,31 @@ function locate(distance) {
   while (low + 1 < high) { const mid = (low + high) >> 1; if (lengths[mid] <= distance) low = mid; else high = mid; }
   return { low, high, mix: (distance - lengths[low]) / (lengths[high] - lengths[low]) };
 }
+// Distances and progress wrap: lap 3.25 is the same place as lap 0.25.
+const lap = progress => progress - Math.floor(progress);
 function along(distance) {
-  if (distance > routeLength) { const end = points.at(-1), heading = end.subtract(points.at(-2)).normalize(); return end.add(heading.scale(distance - routeLength)); }
-  const { low, high, mix } = locate(Math.max(0, distance));
+  const { low, high, mix } = locate(lap(distance / routeLength) * routeLength);
   return Vector3.Lerp(points[low], points[high], mix);
 }
-export function cameraAt(progress) { return along(clamp(progress) * routeLength); }
+export function cameraAt(progress) { return along(lap(progress) * routeLength); }
 
 // Subjects are joined by their own spline and sampled in step with the camera,
 // so the gaze swings smoothly from one to the next.
 const LEAD = 34;
-const subjects = Curve3.CreateCatmullRomSpline(stops.map((stop, i) => {
+const subjects = loop(stops.map((stop, i) => {
   if (stop.see) return new Vector3(...stop.see);
   const ahead = along(lengths[i * SPAN] + LEAD);
   ahead.y = ahead.y * .8 + 1.4;
   return ahead;
-}), SPAN, false).getPoints();
+}));
 export function lookAt(progress) {
-  const { low, high, mix } = locate(clamp(progress) * routeLength);
+  const { low, high, mix } = locate(lap(progress) * routeLength);
   return Vector3.Lerp(subjects[low], subjects[high], mix);
 }
 
 // A slight lean into each turn, as a gliding camera would have.
 export function rollAt(progress) {
-  const d = clamp(progress) * routeLength, a = along(d - 9), b = along(d), c = along(d + 9);
+  const d = lap(progress) * routeLength, a = along(d - 9), b = along(d), c = along(d + 9);
   const turn = (b.x - a.x) * (c.z - b.z) - (b.z - a.z) * (c.x - b.x);
   return clamp(-turn * .0028, -.13, .13);
 }

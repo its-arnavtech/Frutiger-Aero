@@ -72,8 +72,11 @@ function createCascade(scene) {
 
 export async function createWorld(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-  let pixelRatio = Math.min(devicePixelRatio, 1.5);
-  renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth, innerHeight);
+  // The canvas matches the screen; pixelRatio is the resolution the world
+  // itself is drawn at, which the film pipeline enlarges to fill the canvas.
+  const canvasRatio = Math.min(devicePixelRatio, 2);
+  let pixelRatio = Math.min(canvasRatio, 1.5);
+  renderer.setPixelRatio(canvasRatio); renderer.setSize(innerWidth, innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; renderer.shadowMap.autoUpdate = false;
   renderer.info.autoReset = false;
@@ -95,10 +98,11 @@ export async function createWorld(canvas) {
   scene.background = sky.cube; scene.backgroundRotation.copy(sky.rotation); scene.backgroundIntensity = 1.3;
   hdr.mapping = THREE.EquirectangularReflectionMapping;
   const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromEquirectangular(hdr).texture; scene.environmentRotation.copy(sky.rotation); scene.environmentIntensity = .72;
-  pmrem.dispose(); hdr.dispose();
+  const openSky = pmrem.fromEquirectangular(hdr).texture;
+  scene.environment = openSky; scene.environmentRotation.copy(sky.rotation); scene.environmentIntensity = .72;
+  pmrem.dispose();
   facade.colorSpace = THREE.SRGBColorSpace; facade.wrapS = facade.wrapT = THREE.RepeatWrapping;
-  facade.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  facade.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
   scene.add(new THREE.HemisphereLight(0xdff3ff, 0x8fb7a8, .3));
   const sun = new THREE.DirectionalLight(0xfff3e0, 3.3);
@@ -107,7 +111,7 @@ export async function createWorld(canvas) {
   Object.assign(sun.shadow.camera, { left: -195, right: 175, top: 225, bottom: -140, near: 150, far: 480 });
   sun.shadow.camera.updateProjectionMatrix(); sun.shadow.bias = -.00025; sun.shadow.normalBias = .09; scene.add(sun, sun.target);
 
-  const finishes = { ...cityFinishes({ facade, sky, sun: sunDirection }), ...landFinishes(maps) };
+  const finishes = { ...cityFinishes({ facade, sky, sun: sunDirection, maps }), ...landFinishes(maps) };
   const batch = createBatcher(finishes), plantings = { trees: [], shrubs: [], vines: [] };
   buildCity({ add: batch.add, plantings }); buildLandscape({ add: batch.add });
   const city = new THREE.Group(); city.name = 'Aero city'; scene.add(city);
@@ -124,7 +128,7 @@ export async function createWorld(canvas) {
   bubbles.frustumCulled = false; bubbles.layers.set(1); scene.add(bubbles);
 
   const cinema = createCinema(renderer, scene, camera);
-  const resizeTargets = () => { const size = renderer.getDrawingBufferSize(new THREE.Vector2()); cinema.resize(); water.resize(size.x, size.y); };
+  const resizeTargets = () => { const size = renderer.getDrawingBufferSize(new THREE.Vector2()); cinema.setScale(pixelRatio / canvasRatio); cinema.resize(); water.resize(size.x, size.y); };
   resizeTargets();
 
   // Development switches: ?view=x,y,z,tx,ty,tz pins the camera, ?off=a,b disables stages.
@@ -150,22 +154,49 @@ export async function createWorld(canvas) {
   // present, before per-frame visibility starts trimming them.
   await renderer.compileAsync(scene, camera);
   renderer.shadowMap.needsUpdate = true;
-  // One cube-map photograph of the finished city gives every pane of glass
-  // real surroundings to reflect.
+  // A cube-map photograph of the finished city gives every pane of glass real
+  // surroundings to reflect, and every surface the light bounced from them.
   water.material.uniforms.mirrorAmount.value = 0;
-  sky.capture(scene, new THREE.Vector3(1, 30, -26));
+  if (!off.has('bounce')) {
+    scene.environment = sky.capture(scene, new THREE.Vector3(1, 30, -26), hdr);
+    scene.environmentRotation.set(0, 0, 0); scene.environmentIntensity = .74; openSky.dispose();
+  }
+  hdr.dispose();
   water.material.uniforms.mirrorAmount.value = 1;
   cinema.render();
 
   let liveTime = 0, slow = 0, frames = 0, sampleTime = performance.now(), step = 0, shown = 0;
+  // A frame should cost the GPU no more than this many milliseconds.
+  const BUDGET = 24, gl = renderer.getContext();
+  // Where the browser can time the GPU, the drawing resolution follows what
+  // frames really cost: the first measurement is taken on a machine still busy
+  // loading, and often turns out to have been pessimistic.
+  const timer = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+  let stopwatch = null, timing = false, gpuMs = 0, timed = 0, raises = 0;
+  function readTimer() {
+    if (!stopwatch || timing || !gl.getQueryParameter(stopwatch, gl.QUERY_RESULT_AVAILABLE)) return;
+    if (!gl.getParameter(timer.GPU_DISJOINT_EXT)) { const ms = gl.getQueryParameter(stopwatch, gl.QUERY_RESULT) / 1e6; gpuMs = timed ? gpuMs * .9 + ms * .1 : ms; timed++; }
+    gl.deleteQuery(stopwatch); stopwatch = null;
+  }
+  function govern() {
+    if (timed < 70 || !fitted || off.has('economy')) return;
+    if (gpuMs < BUDGET * .64 && raises < 4 && step === 0 && pixelRatio < canvasRatio - .01) {
+      pixelRatio *= Math.min(1.2, Math.sqrt(BUDGET * .78 / gpuMs)); raises++; applyPixelRatio();
+    } else if (gpuMs > BUDGET && raises > 0 && pixelRatio > .7) {
+      // Too far for the busiest views: come back down, and stay there.
+      pixelRatio *= Math.sqrt(BUDGET * .95 / gpuMs); raises = 9; applyPixelRatio();
+    }
+    timed = 0;
+  }
   // Each step trades a little fidelity for speed on machines that need it.
   const economies = [
     () => { if (cinema.quality.samples) cinema.setSamples(0); else pixelRatio *= .88; }, () => { pixelRatio *= .88; }, () => { pixelRatio *= .88; },
     () => { pixelRatio *= .88; }, () => { cinema.quality.bloom = false; }, () => { cinema.quality.occlusion = false; pixelRatio *= .88; },
   ];
-  const applyPixelRatio = () => { pixelRatio = Math.max(.7, pixelRatio); renderer.setPixelRatio(pixelRatio); resizeTargets(); };
+  const applyPixelRatio = () => { pixelRatio = Math.min(canvasRatio, Math.max(.7, pixelRatio)); resizeTargets(); };
   function render(progress, pointer, dt, reducedMotion = false) {
     shown = progress;
+    if (timer) { readTimer(); if (!stopwatch) { stopwatch = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, stopwatch); timing = true; } }
     if (!reducedMotion) liveTime += dt;
     const time = liveTime * .38 + progress * 60;
     aim(progress, pointer);
@@ -179,17 +210,19 @@ export async function createWorld(canvas) {
     renderer.info.reset();
     if (!off.has('mirror')) { vegetation.reflectionBegin(); water.update(camera); vegetation.reflectionEnd(); }
     cinema.render();
+    if (timing) { gl.endQuery(timer.TIME_ELAPSED_EXT); timing = false; }
     frames++; const elapsed = performance.now() - sampleTime;
     if (elapsed > 1000) {
       Object.assign(canvas.dataset, {
         camera: camera.position.toArray().map(v => v.toFixed(2)).join(','), fov: String(camera.fov), fps: String(Math.round(frames * 1000 / elapsed)),
         triangles: String(renderer.info.render.triangles), calls: String(renderer.info.render.calls), trees: String(vegetation.stats.trees), boats: String(boats.stats.boats),
-        pixelRatio: String(pixelRatio), economy: String(step),
+        pixelRatio: pixelRatio.toFixed(2), canvasRatio: String(canvasRatio), economy: String(step), gpu: gpuMs.toFixed(1),
       });
       frames = 0; sampleTime = performance.now();
     }
     if (dt > .034) slow++; else slow = Math.max(0, slow - 2);
-    if (slow > 50 && step < economies.length && !off.has('economy')) { economies[step++](); applyPixelRatio(); slow = 0; }
+    if (slow > 50 && step < economies.length && !off.has('economy')) { economies[step++](); applyPixelRatio(); slow = 0; timed = 0; }
+    govern();
   }
   // Before the curtain lifts, time a few real frames and fit the picture to this
   // GPU, so the flight starts smooth instead of stepping down while you watch.
@@ -198,16 +231,21 @@ export async function createWorld(canvas) {
   function fit() {
     if (fitted || innerWidth < 64 || innerHeight < 64) return;
     fitted = true;
-    const gl = renderer.getContext(), pixel = new Uint8Array(4), still = { x: 0, y: 0 }, BUDGET = 24;
+    const pixel = new Uint8Array(4), still = { x: 0, y: 0 };
     const batch = () => { const start = performance.now(); for (let i = 0; i < 2; i++) render(shown, still, 0); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel); return (performance.now() - start) / 2; };
     // The quickest of several short batches: a busy machine only ever adds time.
     const cost = () => { batch(); return Math.min(batch(), batch(), batch(), batch()); };
     let ms = cost();
-    // Nearly all of the cost is per pixel, so resolution is the lever. A GPU
-    // with room to spare is given true multisampling instead of FXAA.
+    // Nearly all of the cost is per pixel, so resolution is the lever: down if
+    // frames are slow, up toward the screen's own if there is room. A GPU with
+    // room still to spare is given true multisampling instead of FXAA.
     if (ms > BUDGET) { pixelRatio *= Math.max(.62, Math.sqrt(BUDGET / ms)); applyPixelRatio(); }
-    else if (ms < BUDGET * .45) { cinema.setSamples(4); if (cost() > BUDGET) cinema.setSamples(0); }
-    canvas.dataset.calibration = `${ms.toFixed(1)}ms`;
+    else if (pixelRatio < canvasRatio && ms < BUDGET * .8) {
+      pixelRatio *= Math.sqrt(BUDGET * .9 / ms); applyPixelRatio(); ms = cost();
+      if (ms > BUDGET) { pixelRatio *= Math.sqrt(BUDGET / ms); applyPixelRatio(); ms = cost(); }
+    }
+    if (ms < BUDGET * .45) { cinema.setSamples(4); if (cost() > BUDGET) cinema.setSamples(0); }
+    canvas.dataset.calibration = `${ms.toFixed(1)}ms`; timed = 0;
   }
   fit();
   function resize() { camera.aspect = Math.max(1, innerWidth) / Math.max(1, innerHeight); camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); resizeTargets(); fit(); }

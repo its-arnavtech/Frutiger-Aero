@@ -93,6 +93,8 @@ export function createWater({ renderer, scene, normals, sky, sunDirection, sunCo
         vec3 toEye = cameraPosition - worldPosition.xyz; float range = length(toEye); vec3 view = toEye / range;
         // Distant water is drawn calmer: wave detail there is smaller than a pixel.
         vec2 slope = ripples(worldPosition.xz) * (.3 / (1. + range * .016) + .035);
+        // Close to, the surface carries a finer chop over the swell.
+        slope += (texture2D(normalSampler, worldPosition.xz * .57 + time * vec2(.034, -.026)).xy + texture2D(normalSampler, worldPosition.xz * .31 - time * vec2(.021, .03)).xy - 1.) * .11 * saturate(1. - range / 55.);
         vec3 normal = normalize(vec3(slope.x, 1., slope.y));
         float facing = max(dot(normal, view), 0.), fresnel = .035 + .965 * pow(1. - facing, 4.2);
         vec3 mirrored = texture2D(mirrorSampler, mirrorCoord.xy / mirrorCoord.w + slope * .09).rgb;
@@ -113,6 +115,10 @@ export function createWater({ renderer, scene, normals, sky, sunDirection, sunCo
         vec3 body = floorLight * clear + mix(vec3(.0, .36, .46), vec3(.004, .15, .33), open) * (.78 + .22 * lit) * (1. - clear);
 
         vec3 colour = mix(body, mirrored, fresnel);
+        // Where the lagoon meets a quay or a kerb it laps in a thin, broken line of foam.
+        float lapping = (1. - smoothstep(.006, .034, open)) * smoothstep(.0005, .004, open);
+        float broken = texture2D(normalSampler, worldPosition.xz * .23 + time * vec2(.012, .02)).x + .2 * sin(time * .8 + worldPosition.x * .6 + worldPosition.z * .45);
+        colour = mix(colour, vec3(.86, .96, .97) * (.55 + .45 * lit), lapping * smoothstep(.42, .62, broken) * .55);
         float glitter = pow(max(dot(normal, normalize(view + sunDirection)), 0.), 600.) * 18. * lit;
         gl_FragColor = vec4(colour + sunColor * glitter, 1.);
         #include <fog_fragment>

@@ -49,7 +49,7 @@ function frame(now){
  if(Math.abs(progress-target)<.000005)progress=target;
  pointer.x+=(pointerTarget.x-pointer.x)*ease;pointer.y+=(pointerTarget.y-pointer.y)*ease;
  if(reducedMotion.matches)pointer={x:0,y:0};
- world?.render(progress,pointer,dt,reducedMotion.matches);atmosphere?.render(progress,pointer);
+ world?.render(Math.min(progress,.9995),pointer,dt,reducedMotion.matches);atmosphere?.render(progress,pointer);
  ambience.update(0);
  scrubber.value=String(Math.round(progress*1000));scrubber.style.setProperty('--progress',`${progress*100}%`);
  $('#scroll-hint').style.opacity=progress<.025?'0.9':'0';

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cameraAt, lookAt, rollAt, routeLength, places } from '../src/journey.js';
-import { DECK, ground, towers, towerRadius, towerTop, links, linkPoint, spheres, pods, footbridge, gate, basin, islands, fleet, boatKinds, openWater } from '../src/layout.js';
+import { DECK, ground, towers, towerRadius, towerTop, skyline, links, linkPoint, spheres, pods, footbridge, gate, basin, islands, fleet, boatKinds, openWater } from '../src/layout.js';
 
 const STEPS = 6000;
 const route = Array.from({ length: STEPS + 1 }, (_, i) => { const c = cameraAt(i / STEPS); return { p: i / STEPS, x: c.x, y: c.y, z: c.z }; });
@@ -10,7 +10,7 @@ const segmentDistance = (c, a, b) => {
   return Math.hypot(c.x - a[0] - ab[0] * t, c.y - a[1] - ab[1] * t, c.z - a[2] - ab[2] * t);
 };
 
-test('the camera travels one continuous route at a constant speed', () => {
+test('the camera travels one continuous, closed route at a constant speed', () => {
   const expected = routeLength / STEPS;
   for (let i = 1; i <= STEPS; i++) {
     const a = route[i - 1], b = route[i], distance = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
@@ -18,6 +18,8 @@ test('the camera travels one continuous route at a constant speed', () => {
     assert.ok(distance > expected * .97 && distance < expected * 1.03, `Speed changed at ${b.p}`);
   }
   assert.ok(routeLength > 1000, 'The flight should cover the whole city');
+  // The loop closes: the last step lands exactly where the first began.
+  assert.deepEqual(cameraAt(1).asArray(), cameraAt(0).asArray());
 });
 
 test('the route visits every district of the city', () => {
@@ -44,6 +46,8 @@ test('the flight clears every tower, bridge, sphere and pod', () => {
       const shell = Math.max(towerRadius(tower, c.y - 2), towerRadius(tower, c.y), towerRadius(tower, c.y + 2));
       assert.ok(Math.hypot(c.x - tower.x, c.z - tower.z) > shell + 4, `Tower ${tower.kind} at ${tower.x.toFixed(0)},${tower.z.toFixed(0)} is too close at ${c.p}`);
     }
+    // Distant towers are plain shells with a domed or pointed top.
+    for (const far of skyline) if (c.y < far.height + far.radius * 1.5 + 12) assert.ok(Math.hypot(c.x - far.x, c.z - far.z) > far.radius + 9, `Skyline tower at ${far.x.toFixed(0)},${far.z.toFixed(0)} is too close at ${c.p}`);
     for (const link of links) for (let k = 0; k < 1; k += .05) assert.ok(segmentDistance(c, linkPoint(link, k), linkPoint(link, k + .05)) > 5, `Sky bridge too close at ${c.p}`);
     for (const s of spheres) assert.ok(Math.hypot(c.x - s.x, c.y - s.y, c.z - s.z) > s.r + 4, `Sphere too close at ${c.p}`);
     for (const pod of pods) {
@@ -78,9 +82,10 @@ test('boats keep to open water and the flight keeps clear of them', () => {
 });
 
 test('the camera always has a steady subject and a gentle bank', () => {
+  // One extra step carries the check across the seam where the loop closes.
   let previous = null;
-  for (let i = 0; i <= STEPS; i++) {
-    const p = i / STEPS, c = route[i], target = lookAt(p), gaze = [target.x - c.x, target.y - c.y, target.z - c.z], length = Math.hypot(...gaze);
+  for (let i = 0; i <= STEPS + 1; i++) {
+    const p = i / STEPS, c = route[i % STEPS], target = lookAt(p), gaze = [target.x - c.x, target.y - c.y, target.z - c.z], length = Math.hypot(...gaze);
     assert.ok(length > 8, `Subject too close to the camera at ${p}`);
     assert.ok(Math.abs(rollAt(p)) <= .13);
     const direction = gaze.map(v => v / length);
@@ -92,12 +97,21 @@ test('the camera always has a steady subject and a gentle bank', () => {
 test('reverse scrolling follows exactly the same spatial route', () => {
   const forward = Array.from({ length: 101 }, (_, i) => cameraAt(i / 100).asArray());
   for (let i = 100; i >= 0; i--) assert.deepEqual(cameraAt(i / 100).asArray(), forward[i]);
-  assert.deepEqual(cameraAt(-1), cameraAt(0));
-  assert.deepEqual(cameraAt(2), cameraAt(1));
+});
+
+test('the flight is endless in both directions', () => {
+  const close = (a, b) => assert.ok(Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < 1e-6);
+  for (const p of [0, .137, .5, .93]) for (const laps of [-1000, -3, -1, 1, 2, 57, 1000]) {
+    close(cameraAt(p + laps), cameraAt(p)); close(lookAt(p + laps), lookAt(p));
+    assert.ok(Math.abs(rollAt(p + laps) - rollAt(p)) < 1e-6);
+  }
+  // Nothing jumps as one lap gives way to the next.
+  const before = cameraAt(-1e-7), after = cameraAt(1e-7);
+  assert.ok(Math.hypot(after.x - before.x, after.y - before.y, after.z - before.z) < 1e-3);
 });
 
 test('named places are in order along the journey', () => {
   assert.ok(places.length >= 5);
   for (let i = 1; i < places.length; i++) assert.ok(places[i].progress > places[i - 1].progress);
-  assert.equal(places[0].progress, 0); assert.equal(places.at(-1).progress, 1);
+  assert.equal(places[0].progress, 0); assert.ok(places.at(-1).progress < 1);
 });

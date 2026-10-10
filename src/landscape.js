@@ -3,36 +3,41 @@ import { sweep, surface } from './build.js';
 import { TAU, islands, islandHeight, islandEdge, RIM } from './layout.js';
 
 export async function loadSurfaces(renderer) {
-  const loader = new THREE.TextureLoader(), anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  const loader = new THREE.TextureLoader(), anisotropy = renderer.capabilities.getMaxAnisotropy();
   async function set(name) {
     const [color, normal, roughness] = await Promise.all(['diff', 'nor_gl', 'rough'].map(kind => loader.loadAsync(`/assets/materials/${name}_${kind}_1k.jpg`)));
     color.colorSpace = THREE.SRGBColorSpace;
     for (const texture of [color, normal, roughness]) { texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.anisotropy = anisotropy; }
     return { color, normal, roughness };
   }
-  const [grass, rock, sand] = await Promise.all([set('grass_ground'), set('marble_cliff_02'), set('coast_sand_01')]);
-  return { grass, rock, sand };
+  const [grass, rock, sand, leafy] = await Promise.all([set('grass_ground'), set('marble_cliff_02'), set('coast_sand_01'), set('leafy_grass')]);
+  return { grass, rock, sand, leafy };
 }
 
 // Ground is textured from world position, so lawns, islands and the gardens
 // inside the spheres all share one continuous, seamless turf. The scanned grass
 // supplies blade-scale detail; the colour itself is graded to a watered lawn.
+// Here and there the fine grass gives way to patches of broader-leaved clover,
+// from a second scan, as it does in any lawn that is not artificial.
 function groundMaterial(maps, wild) {
   const material = new THREE.MeshStandardMaterial({ map: maps.grass.color, normalMap: maps.grass.normal, normalScale: new THREE.Vector2(1.5, 1.5), roughness: .9, envMapIntensity: .5 });
   material.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, { groundSand: { value: maps.sand.color }, groundRock: { value: maps.rock.color } });
+    Object.assign(shader.uniforms, { groundSand: { value: maps.sand.color }, groundRock: { value: maps.rock.color }, groundLeafy: { value: maps.leafy.color }, groundLeafyNormal: { value: maps.leafy.normal } });
     shader.vertexShader = `varying vec3 vLand; varying vec3 vLandNormal;\n${shader.vertexShader}`
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLand = (modelMatrix * vec4(transformed, 1.)).xyz; vLandNormal = normal;');
-    shader.fragmentShader = `varying vec3 vLand; varying vec3 vLandNormal; uniform sampler2D groundSand; uniform sampler2D groundRock;\n${shader.fragmentShader}`
+    shader.fragmentShader = `varying vec3 vLand; varying vec3 vLandNormal; uniform sampler2D groundSand; uniform sampler2D groundRock; uniform sampler2D groundLeafy; uniform sampler2D groundLeafyNormal;\n${shader.fragmentShader}`
       .replace('#include <map_fragment>', `
         vec2 turf = vLand.xz;
         // Two scales of scanned grass: blades underfoot, texture from a distance.
-        float blade = dot(texture2D(map, turf * .23).rgb, vec3(.3, .55, .15)) * .6 + dot(texture2D(map, turf * .91 + .21).rgb, vec3(.3, .55, .15)) * .4;
+        float blade = dot(texture2D(map, turf * .23, -.6).rgb, vec3(.3, .55, .15)) * .6 + dot(texture2D(map, turf * .91 + .21, -.6).rgb, vec3(.3, .55, .15)) * .4;
         float mottle = texture2D(map, turf * .019 + .37).g, drift = texture2D(map, turf * .0043).r;
+        float clover = smoothstep(.42, .56, texture2D(map, turf * .0083 + .61).b + .35 * (mottle - .4));
+        blade = mix(blade, dot(texture2D(groundLeafy, turf * .34, -.6).rgb, vec3(.3, .55, .15)) * .82 + .03, clover);
         // The scan is dry and brown, so only its light and shade are used: the
         // darkest blades map to deep green, the brightest to sunlit yellow-green.
         vec3 lush = mix(vec3(.04, .1, .018), vec3(.25, .37, .075), saturate(blade * 7.5 - .5));
         lush *= .74 + .5 * mottle; lush = mix(lush, lush * vec3(1.28, 1.1, .62), saturate(drift * 2.4 - .55) * .5);
+        lush = mix(lush, lush * vec3(.74, .98, .86), clover * .7);
         ${wild ? `
         float shore = 1. - smoothstep(.2, 2.4, vLand.y), steep = smoothstep(.36, .7, 1. - normalize(vLandNormal).y) * (1. - shore);
         vec3 canopy = lush * mix(vec3(.5, .68, .6), vec3(.86, .95, .7), saturate(mottle * 3. - .9));
@@ -40,7 +45,7 @@ function groundMaterial(maps, wild) {
         // Faint mowing bands, as on any tended lawn.
         lush *= .9 + .1 * smoothstep(-.3, .3, sin(turf.x * .52 + turf.y * .31));`}
         diffuseColor.rgb = lush;`)
-      .replace('#include <normal_fragment_maps>', THREE.ShaderChunk.normal_fragment_maps.replace('texture2D( normalMap, vNormalMapUv )', 'texture2D( normalMap, vLand.xz * .23 )'));
+      .replace('#include <normal_fragment_maps>', THREE.ShaderChunk.normal_fragment_maps.replace('texture2D( normalMap, vNormalMapUv )', 'mix(texture2D(normalMap, vLand.xz * .23, -.6), texture2D(groundLeafyNormal, vLand.xz * .34, -.6), clover)'));
   };
   material.customProgramCacheKey = () => `aero-ground-${wild}`;
   return material;

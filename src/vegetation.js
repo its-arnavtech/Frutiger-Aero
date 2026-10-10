@@ -25,6 +25,18 @@ function addWind(material, time, { leaf = false } = {}) {
       transformed.x += (breeze * 0.09 + flutter * 0.025) * flexibility;
       transformed.z += cos(vegetationTime * 0.6 + root.x * 0.09 + root.z * 0.14) * 0.04 * flexibility;
     `);
+    // Each leaf in the photograph catches the light on its own account: its
+    // tone is read as relief, so sprays shade leaf by leaf rather than as flat cards.
+    if (leaf) shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      #ifdef USE_MAP
+      {
+        float relief = dot(sampledDiffuseColor.rgb, vec3(.4, .5, .1));
+        vec2 rise = vec2(dFdx(relief), dFdy(relief)) * .07;
+        vec3 sigmaX = dFdx(-vViewPosition), sigmaY = dFdy(-vViewPosition), r1 = cross(sigmaY, normal), r2 = cross(normal, sigmaX);
+        float det = dot(sigmaX, r1);
+        normal = normalize(abs(det) * normal - sign(det) * (rise.x * r1 + rise.y * r2));
+      }
+      #endif`);
     // Plants are lit by the sun, by blue sky from above and by green light
     // bounced up from the lawns. Thin leaves also glow when the sun is behind
     // them, while the vertex colour keeps the heart of each crown deep green.
@@ -212,7 +224,7 @@ export async function createVegetation({ scene, plantings, renderer }) {
   const vegetation = new THREE.Group(); vegetation.name = 'Living botanical landscape'; scene.add(vegetation);
   const reflected = [], batches = [], shrubs = [], resources = [], textures = new Set();
   const frustum = new THREE.Frustum(), viewProjection = new THREE.Matrix4(), mirrored = new THREE.Sphere();
-  const maxAnisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
   const groups = plant(plantings);
   const leafTextures = new Set();
   let ashLeaves = null;
