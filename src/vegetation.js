@@ -6,9 +6,9 @@ import {
 } from './layout.js';
 
 // Trees are real branching meshes with photographed, alpha-cut leaf sprays.
-// Each species is drawn at three levels of detail chosen per tree, per frame.
+// The camera always sees the complete crown and branches, at every distance.
+// Only the water reflection uses simplified geometry, never the main view.
 const tmp = new THREE.Object3D(), color = new THREE.Color();
-const NEAR = 24, MID = 56, FAR = 125;
 
 function addWind(material, time, { leaf = false } = {}) {
   material.onBeforeCompile = shader => {
@@ -259,27 +259,17 @@ export async function createVegetation({ scene, plantings, renderer }) {
       resources.push(light);
       continue;
     }
-    const crowns = [leaves, thinned(leaves, 4, 1.7, 1.05), thinned(leaves, 12, 2.9, 1.12), thinned(leaves, 34, 4.4, 1.2)];
-    const trunks = [branches, limbs(branches, levelStart[3]), limbs(branches, levelStart[2]), limbs(branches, levelStart[1])];
-    const canopies = crowns.map((geometry, level) => {
-      const mesh = instanced(geometry, foliage, placements, vegetation, { name: `${species.preset} leaves ${level}` });
-      if (level > 0) mesh.count = 0;
-      reflected.push({ mesh, far: crowns[3], current: geometry });
-      return mesh;
-    });
-    const stems = trunks.map((geometry, level) => {
-      const mesh = instanced(geometry, bark, placements, vegetation, { name: `${species.preset} branches ${level}` });
-      if (level > 0) mesh.count = 0;
-      reflected.push({ mesh, far: trunks[3], current: geometry });
-      return mesh;
-    });
+    const reflectedCrown = thinned(leaves, 34, 4.4, 1.2), reflectedTrunk = limbs(branches, levelStart[1]);
+    const canopy = instanced(leaves, foliage, placements, vegetation, { name: `${species.preset} full-detail leaves` });
+    const stem = instanced(branches, bark, placements, vegetation, { name: `${species.preset} full-detail branches` });
+    reflected.push({ mesh: canopy, far: reflectedCrown, current: leaves }, { mesh: stem, far: reflectedTrunk, current: branches });
     const entries = placements.map((placement, index) => {
-      const matrix = new THREE.Matrix4(); stems[0].getMatrixAt(index, matrix);
+      const matrix = new THREE.Matrix4(); stem.getMatrixAt(index, matrix);
       const radius = species.height * placement.scale * .8;
-      return { matrix, tint: placement.tint ?? 0xffffff, bounds: new THREE.Sphere(new THREE.Vector3(placement.x, placement.y + radius * .6, placement.z), radius), reach: Math.max(1, placement.scale) };
+      return { matrix, tint: placement.tint ?? 0xffffff, bounds: new THREE.Sphere(new THREE.Vector3(placement.x, placement.y + radius * .6, placement.z), radius) };
     });
-    batches.push({ stems, canopies, entries });
-    resources.push(crowns[1], crowns[2], crowns[3]);
+    batches.push({ stem, canopy, entries });
+    resources.push(reflectedCrown, reflectedTrunk);
   }
 
   const lowPlants = new THREE.Group(); lowPlants.name = 'Lawn and hanging plants'; vegetation.add(lowPlants);
@@ -307,23 +297,20 @@ export async function createVegetation({ scene, plantings, renderer }) {
       camera.updateMatrixWorld();
       frustum.setFromProjectionMatrix(viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
       for (const batch of batches) {
-        for (const mesh of batch.stems) mesh.count = 0;
-        for (const mesh of batch.canopies) mesh.count = 0;
+        const { stem, canopy } = batch;
+        stem.count = canopy.count = 0;
         for (const entry of batch.entries) {
           mirrored.copy(entry.bounds); mirrored.center.y *= -1;
           // Keep anything visible in either the camera or the mirrored water view.
           if (!frustum.intersectsSphere(entry.bounds) && !frustum.intersectsSphere(mirrored)) continue;
-          const distance = camera.position.distanceTo(entry.bounds.center) / entry.reach, level = distance < NEAR ? 0 : distance < MID ? 1 : distance < FAR ? 2 : 3;
-          const canopy = batch.canopies[level], stem = batch.stems[level];
           canopy.setColorAt(canopy.count, color.setHex(entry.tint)); canopy.setMatrixAt(canopy.count++, entry.matrix);
           stem.setMatrixAt(stem.count++, entry.matrix);
         }
-        for (const mesh of [...batch.stems, ...batch.canopies]) { mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+        for (const mesh of [stem, canopy]) { mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
       }
       for (const group of shrubs) {
         group.trunk.count = group.crown.count = 0;
         for (const entry of group.entries) {
-          if (camera.position.distanceToSquared(entry.center) > 150 * 150) continue;
           mirrored.set(entry.center, entry.radius); if (!frustum.intersectsSphere(mirrored)) continue;
           group.crown.setColorAt(group.crown.count, color.setHex(entry.tint)); group.crown.setMatrixAt(group.crown.count++, entry.matrix);
           group.trunk.setMatrixAt(group.trunk.count++, entry.matrix);
