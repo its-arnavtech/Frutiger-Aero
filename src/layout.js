@@ -136,6 +136,23 @@ export const towers = [];
   }
 }
 
+// A tower that rises from open water stands in a garden island of its own, as
+// large as its neighbours, the banks and the basin leave room for.
+{
+  const random = rng(7717), gardens = [];
+  for (const tower of towers) {
+    if (ground(tower.x, tower.z).kind !== 'water') continue;
+    let reach = tower.radius + 13 + random() * 4;
+    for (const other of towers) if (other !== tower) reach = Math.min(reach, Math.hypot(other.x - tower.x, other.z - tower.z) * .5 - 1.4);
+    reach = Math.min(reach, Math.hypot(tower.x - basin.x, tower.z - basin.z) - 27);
+    const touches = r => { for (let i = 0; i < 28; i++) { const a = i / 28 * TAU; if (ground(tower.x + Math.cos(a) * r, tower.z + Math.sin(a) * r).kind !== 'water') return true; } return false; };
+    while (reach > tower.radius + 5 && (touches(reach * 1.12 + 2) || touches(reach * .7))) reach -= 1;
+    if (reach < tower.radius + 5.5) continue;
+    gardens.push({ x: tower.x, z: tower.z, rx: reach / 1.11 * (.88 + random() * .12), rz: reach / 1.11 * (.88 + random() * .12), h: .45 + random() * .5, seed: tower.seed, garden: true });
+  }
+  islands.push(...gardens);
+}
+
 // Far towers only ever appear through haze, so they carry no detail.
 export const skyline = [];
 {

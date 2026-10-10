@@ -24,7 +24,7 @@ test('the route visits every district of the city', () => {
   const near = (x, z, reach) => route.some(c => Math.hypot(c.x - x, c.z - z) < reach);
   assert.ok(near(gate.x, gate.z, 3), 'passes through the gateway');
   assert.ok(near(basin.x + 30, basin.z, 12) && near(basin.x - 30, basin.z, 12), 'circles the basin');
-  for (const island of islands.filter(i => !i.wild && i.rx > 15)) assert.ok(near(island.x, island.z, 95), `comes within sight of the island at ${island.x},${island.z}`);
+  for (const island of islands.filter(i => !i.wild && !i.garden && i.rx > 15)) assert.ok(near(island.x, island.z, 95), `comes within sight of the island at ${island.x},${island.z}`);
   for (const quadrant of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) assert.ok(route.some(c => Math.sign(c.x) === quadrant[0] && Math.sign(c.z + 20) === quadrant[1] && Math.abs(c.x) > 40), `reaches quadrant ${quadrant}`);
 });
 

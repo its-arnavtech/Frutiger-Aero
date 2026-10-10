@@ -36,7 +36,7 @@ function createHaze(scene, colour) {
   const material = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, blending: THREE.CustomBlending, uniforms: { hazeColour: { value: colour } },
     vertexShader: 'varying vec3 vDirection; void main() { vDirection = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
-    fragmentShader: 'uniform vec3 hazeColour; varying vec3 vDirection; void main() { float rise = normalize(vDirection).y; gl_FragColor = vec4(hazeColour, pow(1. - smoothstep(-.03, .26, rise), 2.2)); }',
+    fragmentShader: 'uniform vec3 hazeColour; varying vec3 vDirection; void main() { float rise = normalize(vDirection).y; gl_FragColor = vec4(hazeColour, .82 * pow(1. - smoothstep(-.02, .17, rise), 2.)); }',
   });
   const haze = new THREE.Mesh(new THREE.SphereGeometry(1700, 40, 20), material);
   haze.name = 'Horizon haze'; haze.frustumCulled = false; haze.renderOrder = -1000;
@@ -76,7 +76,7 @@ export async function createWorld(canvas) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; renderer.shadowMap.autoUpdate = false;
   renderer.info.autoReset = false;
-  const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0xc3def0, .0026);
+  const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0xb3d2ee, .0017);
   const camera = new THREE.PerspectiveCamera(55, Math.max(1, innerWidth) / Math.max(1, innerHeight), .3, 2200);
   camera.layers.enable(1);
 
@@ -94,13 +94,13 @@ export async function createWorld(canvas) {
   scene.background = sky.cube; scene.backgroundRotation.copy(sky.rotation); scene.backgroundIntensity = 1.3;
   hdr.mapping = THREE.EquirectangularReflectionMapping;
   const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromEquirectangular(hdr).texture; scene.environmentRotation.copy(sky.rotation); scene.environmentIntensity = .9;
+  scene.environment = pmrem.fromEquirectangular(hdr).texture; scene.environmentRotation.copy(sky.rotation); scene.environmentIntensity = .72;
   pmrem.dispose(); hdr.dispose();
   facade.colorSpace = THREE.SRGBColorSpace; facade.wrapS = facade.wrapT = THREE.RepeatWrapping;
   facade.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 
-  scene.add(new THREE.HemisphereLight(0xdff3ff, 0x8fb7a8, .42));
-  const sun = new THREE.DirectionalLight(0xfff3e0, 2.9);
+  scene.add(new THREE.HemisphereLight(0xdff3ff, 0x8fb7a8, .3));
+  const sun = new THREE.DirectionalLight(0xfff3e0, 3.3);
   sun.target.position.set(4, 0, -44); sun.position.copy(sun.target.position).addScaledVector(sunDirection, 330);
   sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
   Object.assign(sun.shadow.camera, { left: -195, right: 175, top: 225, bottom: -140, near: 150, far: 480 });
@@ -112,7 +112,7 @@ export async function createWorld(canvas) {
   const city = new THREE.Group(); city.name = 'Aero city'; scene.add(city);
   const meshes = batch.build(city, 'City');
   const vegetation = await createVegetation({ scene, plantings, renderer });
-  const water = createWater({ renderer, scene, normals: waterNormals, sunDirection, sunColor: 0xfff6e2 });
+  const water = createWater({ renderer, scene, normals: waterNormals, sky, sunDirection, sunColor: 0xfff6e2 });
   const cascade = createCascade(scene);
   createHaze(scene, scene.fog.color);
 
@@ -147,6 +147,11 @@ export async function createWorld(canvas) {
   // present, before per-frame visibility starts trimming them.
   await renderer.compileAsync(scene, camera);
   renderer.shadowMap.needsUpdate = true;
+  // One cube-map photograph of the finished city gives every pane of glass
+  // real surroundings to reflect.
+  water.material.uniforms.mirrorAmount.value = 0;
+  sky.capture(scene, new THREE.Vector3(1, 30, -26));
+  water.material.uniforms.mirrorAmount.value = 1;
   cinema.render();
 
   let liveTime = 0, slow = 0, frames = 0, sampleTime = performance.now(), step = 0, shown = 0;

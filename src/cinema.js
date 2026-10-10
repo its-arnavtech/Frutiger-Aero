@@ -104,7 +104,7 @@ const gradeShader = /* glsl */`
 
 export function createCinema(renderer, scene, camera) {
   const quad = new FullScreenQuad(), size = new THREE.Vector2(), LEVELS = 5;
-  const quality = { samples: 0, occlusion: true, bloom: true, glow: .1 };
+  const quality = { samples: 0, occlusion: true, bloom: true, glow: .05 };
   const half = { type: THREE.HalfFloatType, depthBuffer: false };
   let sceneTarget, graded, aoA, aoB, mips = [];
 
@@ -112,7 +112,7 @@ export function createCinema(renderer, scene, camera) {
   const soften = pass(softenShader, { tOcclusion: { value: null }, tDepth: { value: null }, stride: { value: new THREE.Vector2() }, planes: { value: new THREE.Vector2(camera.near, camera.far) } });
   const shrink = pass(shrinkShader, { tSource: { value: null }, texel: { value: new THREE.Vector2() }, first: { value: 0 } });
   const grow = pass(growShader, { tSource: { value: null }, texel: { value: new THREE.Vector2() }, blend: { value: .62 } }, { transparent: true });
-  const grade = pass(gradeShader, { tScene: { value: null }, tOcclusion: { value: null }, tBloom: { value: null }, exposure: { value: 1 }, occlusion: { value: 1 }, bloom: { value: .1 }, saturation: { value: 1.08 }, contrast: { value: .12 } });
+  const grade = pass(gradeShader, { tScene: { value: null }, tOcclusion: { value: null }, tBloom: { value: null }, exposure: { value: 1 }, occlusion: { value: 1 }, bloom: { value: .1 }, saturation: { value: 1.06 }, contrast: { value: .2 } });
   const smooth = pass(FXAAShader.fragmentShader, { tDiffuse: { value: null }, resolution: { value: new THREE.Vector2() } });
   const white = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); white.needsUpdate = true;
   const black = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); black.needsUpdate = true;

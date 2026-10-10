@@ -8,7 +8,7 @@ import {
 // Trees are real branching meshes with photographed, alpha-cut leaf sprays.
 // Each species is drawn at three levels of detail chosen per tree, per frame.
 const tmp = new THREE.Object3D(), color = new THREE.Color();
-const NEAR = 24, MID = 56;
+const NEAR = 24, MID = 56, FAR = 125;
 
 function addWind(material, time, { leaf = false } = {}) {
   material.onBeforeCompile = shader => {
@@ -31,16 +31,45 @@ function addWind(material, time, { leaf = false } = {}) {
     shader.fragmentShader = shader.fragmentShader.replace('#include <lights_fragment_end>', `
       #include <lights_fragment_end>
       float skyward = inverseTransformDirection(normal, viewMatrix).y * .5 + .5;
-      reflectedLight.indirectDiffuse += diffuseColor.rgb * mix(vec3(.2, .27, .13), vec3(.5, .66, .8), skyward) * .62;
+      reflectedLight.indirectDiffuse += diffuseColor.rgb * mix(vec3(.18, .27, .12), vec3(.46, .6, .74), skyward) * 1.02;
       ${leaf ? `
       #if NUM_DIR_LIGHTS > 0
         vec3 sunward = directionalLights[0].direction;
         float behind = saturate(dot(-sunward, normal)) * .55 + pow(saturate(dot(geometryViewDir, -sunward)), 3.) * .8;
-        reflectedLight.directDiffuse += diffuseColor.rgb * directionalLights[0].color * vec3(.8, 1., .34) * behind * .11;
+        reflectedLight.directDiffuse += diffuseColor.rgb * directionalLights[0].color * vec3(.85, 1., .3) * behind * .13;
+        // Waxy leaves throw back small glints of the sun.
+        float glint = pow(saturate(dot(normal, normalize(sunward + geometryViewDir))), 26.) * saturate(dot(normal, sunward) * 3.);
+        reflectedLight.directDiffuse += directionalLights[0].color * glint * .05 * vColor.g;
       #endif` : ''}
     `);
   };
   material.customProgramCacheKey = () => `aero-foliage-${leaf}`;
+}
+
+// Ordinary mipmaps average a spray of leaves into a solid blob. These are built
+// so every level keeps the same share of open gaps as the original photograph,
+// which is what keeps a crown reading as leaves rather than as green putty.
+function keepLeafGaps(texture, cutoff = .42) {
+  const image = texture.image;
+  if (!image?.width || texture.mipmaps.length) return;
+  const chain = document.createElement('canvas'), half = document.createElement('canvas'), levels = [];
+  let open = 0;
+  for (let size = image.width, source = image; size >= 1; size >>= 1) {
+    half.width = half.height = size;
+    const ctx = half.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingQuality = 'high'; ctx.drawImage(source, 0, 0, size, size);
+    const data = ctx.getImageData(0, 0, size, size), alpha = data.data, count = size * size;
+    const covered = scale => { let n = 0; for (let i = 3; i < alpha.length; i += 4) if (alpha[i] * scale > cutoff * 255) n++; return n / count; };
+    chain.width = chain.height = size; chain.getContext('2d').drawImage(half, 0, 0); source = chain;
+    if (!levels.length) open = covered(1);
+    else {
+      let low = .25, high = 8;
+      for (let step = 0; step < 14; step++) { const middle = (low + high) / 2; if (covered(middle) < open) low = middle; else high = middle; }
+      for (let i = 3; i < alpha.length; i += 4) alpha[i] = Math.min(255, alpha[i] * high);
+    }
+    levels.push(data);
+  }
+  texture.mipmaps = levels; texture.generateMipmaps = false; texture.needsUpdate = true;
 }
 
 function instanced(geometry, material, placements, parent, { shadows = true, name = '', layer = 0 } = {}) {
@@ -71,10 +100,10 @@ function shapeCrown(geometry, random) {
     for (let j = i; j < i + 4; j++) middle.add(radial.fromBufferAttribute(pos, j));
     middle.multiplyScalar(.25).sub(center).divide(half);
     const depth = Math.min(1, middle.length() / 1.05), lift = middle.y * .5 + .5;
-    const shade = (.46 + .54 * depth * depth) * (.78 + .22 * lift), tone = .84 + random() * .16, warm = random();
+    const shade = (.26 + .74 * depth * depth) * (.72 + .28 * lift), tone = .8 + random() * .2, warm = random();
     for (let j = i; j < Math.min(i + 4, pos.count); j++) {
       radial.fromBufferAttribute(pos, j).sub(center); radial.y = radial.y * .7 + half.y * .25; radial.normalize();
-      normal.fromBufferAttribute(normals, j).lerp(radial, .78).normalize();
+      normal.fromBufferAttribute(normals, j).lerp(radial, .6).normalize();
       normals.setXYZ(j, normal.x, normal.y, normal.z);
       colors[j * 3] = shade * tone * (.9 + warm * .16); colors[j * 3 + 1] = shade * tone; colors[j * 3 + 2] = shade * tone * (.86 - warm * .12);
     }
@@ -82,19 +111,23 @@ function shapeCrown(geometry, random) {
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 }
 
-// A lighter crown made from every nth spray, enlarged to hold its silhouette.
-function thinned(source, keep, enlargement) {
+// A lighter crown for distant trees. It keeps one spray in every `keep`, drawn
+// from the outer, sunlit shell that carries the silhouette, and enlarges and
+// brightens them so the tree holds its mass and colour as it recedes.
+function thinned(source, keep, enlargement, lift = 1) {
   const result = new THREE.BufferGeometry(), arrays = { position: [], normal: [], uv: [], color: [] }, indices = [], attributes = source.attributes;
-  const center = new THREE.Vector3(), p = new THREE.Vector3();
+  const center = new THREE.Vector3(), p = new THREE.Vector3(), sprays = attributes.position.count >> 2;
+  const outer = Array.from({ length: sprays }, (_, i) => i).sort((a, b) => attributes.color.getY(b * 4) - attributes.color.getY(a * 4)).slice(0, Math.ceil(sprays * 2 / keep));
   let offset = 0;
-  for (let start = 0; start + 3 < attributes.position.count; start += keep * 4) {
+  for (let n = 0; n < outer.length; n += 2) {
+    const start = outer[n] * 4;
     center.set(0, 0, 0);
     for (let v = 0; v < 4; v++) center.add(p.fromBufferAttribute(attributes.position, start + v));
     center.multiplyScalar(.25);
     for (let v = 0; v < 4; v++) {
       p.fromBufferAttribute(attributes.position, start + v).sub(center).multiplyScalar(enlargement).add(center);
       arrays.position.push(p.x, p.y, p.z);
-      for (const name of ['normal', 'uv', 'color']) { const a = attributes[name]; for (let k = 0; k < a.itemSize; k++) arrays[name].push(a.array[(start + v) * a.itemSize + k]); }
+      for (const name of ['normal', 'uv', 'color']) { const a = attributes[name]; for (let k = 0; k < a.itemSize; k++) arrays[name].push(a.array[(start + v) * a.itemSize + k] * (name === 'color' ? lift : 1)); }
     }
     indices.push(offset, offset + 1, offset + 2, offset, offset + 2, offset + 3); offset += 4;
   }
@@ -128,13 +161,13 @@ function vineStrand() {
 }
 
 const SPECIES = [
-  { preset: 'Oak Medium', seed: 37191, height: 8.6, leaves: 14, tint: [2.2, 2.25, 1.1] },
-  { preset: 'Ash Medium', seed: 81923, height: 9.2, leaves: 11, tint: [1.9, 2.3, 1] },
-  { preset: 'Oak Medium', seed: 56911, height: 7.6, leaves: 13, tint: [1.85, 2.15, 1.25] },
-  { preset: 'Aspen Medium', seed: 22641, height: 10.4, leaves: 12, tint: [.62, 1.5, .42], size: 2 },
-  { preset: 'Oak Large', seed: 23399, height: 10.9, leaves: 15, tint: [2.2, 2.25, 1.1], hero: true },
+  { preset: 'Oak Medium', seed: 37191, height: 8.6, leaves: 16, tint: [2.25, 2.35, 1] },
+  { preset: 'Ash Medium', seed: 81923, height: 9.2, leaves: 13, tint: [1.9, 2.35, .95] },
+  { preset: 'Oak Medium', seed: 56911, height: 7.6, leaves: 15, tint: [1.85, 2.2, 1.15] },
+  { preset: 'Aspen Medium', seed: 22641, height: 10.4, leaves: 13, tint: [.64, 1.55, .4], size: 2 },
+  { preset: 'Oak Large', seed: 23399, height: 10.9, leaves: 16, tint: [2.25, 2.35, 1], hero: true },
   { preset: 'Aspen Medium', seed: 60113, height: 8.2, leaves: 11, tint: [1.15, 1.02, .6], size: 2 },
-  { preset: 'Bush 1', seed: 17751, height: 1.9, leaves: 10, tint: [1.9, 2.2, 1.05], bush: true },
+  { preset: 'Bush 1', seed: 17751, height: 1.9, leaves: 10, tint: [1.85, 2.2, 1], bush: true },
   { preset: 'Bush 2', seed: 40903, height: 1.7, leaves: 9, tint: [1.2, 1.05, .55], bush: true, leafType: 'aspen' },
 ];
 const HERO = 4, GOLDEN = 5, SHRUB = 6, BLOSSOM = 7;
@@ -165,8 +198,8 @@ function plant(plantings) {
   for (const island of islands) {
     if (island.wild) continue;
     const spot = reach => { const a = random() * TAU, r = Math.sqrt(random()) * reach * islandEdge(island, a); const x = island.x + Math.cos(a) * r * island.rx, z = island.z + Math.sin(a) * r * island.rz; return [x, islandHeight(island, x, z), z]; };
-    for (let i = 0; i < island.rx * island.rz * .075; i++) { const [x, y, z] = spot(RIM * .84); if (free(x, z, 2.7)) wood(x, y, z, .66 + random() * .55); }
-    for (let i = 0; i < island.rx * island.rz * .09; i++) { const [x, y, z] = spot(RIM * .95); if (free(x, z, .8)) shrub(x, y, z, .55 + random() * .65); }
+    for (let i = 0; i < island.rx * island.rz * (island.garden ? .11 : .075); i++) { const [x, y, z] = spot(RIM * .84); if (!blocked(x, z, 1.4) && free(x, z, 2.5)) wood(x, y, z, .66 + random() * .55); }
+    for (let i = 0; i < island.rx * island.rz * .09; i++) { const [x, y, z] = spot(RIM * .95); if (!blocked(x, z, .2) && free(x, z, .8)) shrub(x, y, z, .55 + random() * .65); }
   }
   let street = 0;
   for (const p of plantings.trees) groups[p.hero ? HERO : p.street ? (street++ % 2 ? 1 : 3) : Math.floor(random() * 3)].push({ ...p, y: p.y - .04, rotation: random() * TAU, tint: hue() });
@@ -181,6 +214,7 @@ export async function createVegetation({ scene, plantings, renderer }) {
   const frustum = new THREE.Frustum(), viewProjection = new THREE.Matrix4(), mirrored = new THREE.Sphere();
   const maxAnisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   const groups = plant(plantings);
+  const leafTextures = new Set();
   let ashLeaves = null;
 
   for (let i = 0; i < SPECIES.length; i++) {
@@ -208,6 +242,7 @@ export async function createVegetation({ scene, plantings, renderer }) {
     const sourceBark = tree.branchesMesh.material, sourceLeaf = tree.leavesMesh.material;
     for (const texture of [sourceBark.map, sourceBark.normalMap, sourceBark.roughnessMap, sourceLeaf.map]) if (texture) { texture.anisotropy = maxAnisotropy; textures.add(texture); }
     if (species.preset.startsWith('Ash')) ashLeaves = sourceLeaf.map;
+    leafTextures.add(sourceLeaf.map);
     const bark = new THREE.MeshLambertMaterial({ map: sourceBark.map, normalMap: sourceBark.normalMap, normalScale: new THREE.Vector2(.65, .65), color: 0xc4beb2 });
     const foliage = new THREE.MeshLambertMaterial({ map: sourceLeaf.map, vertexColors: true, alphaTest: .42, alphaToCoverage: true, side: THREE.DoubleSide });
     foliage.color.setRGB(...species.tint); foliage.shadowSide = THREE.DoubleSide;
@@ -217,25 +252,25 @@ export async function createVegetation({ scene, plantings, renderer }) {
     if (!placements.length) continue;
 
     if (species.bush) {
-      const light = thinned(leaves, 5, 1.9), parent = new THREE.Group(); vegetation.add(parent);
+      const light = thinned(leaves, 5, 1.9, 1.15), parent = new THREE.Group(); vegetation.add(parent);
       const trunk = instanced(limbs(branches, levelStart[1]), bark, placements, parent, { name: `${species.preset} stems`, layer: 1 });
       const crown = instanced(light, foliage, placements, parent, { name: `${species.preset} leaves`, layer: 1 });
       shrubs.push({ parent, trunk, crown, entries: placements.map((p, index) => { const matrix = new THREE.Matrix4(); crown.getMatrixAt(index, matrix); return { matrix, tint: p.tint ?? 0xffffff, center: new THREE.Vector3(p.x, p.y + 1, p.z), radius: 2.4 * p.scale }; }) });
       resources.push(light);
       continue;
     }
-    const crowns = [leaves, thinned(leaves, 4, 1.7), thinned(leaves, 14, 3)];
-    const trunks = [branches, limbs(branches, levelStart[3]), limbs(branches, levelStart[2])];
+    const crowns = [leaves, thinned(leaves, 4, 1.7, 1.05), thinned(leaves, 12, 2.9, 1.12), thinned(leaves, 34, 4.4, 1.2)];
+    const trunks = [branches, limbs(branches, levelStart[3]), limbs(branches, levelStart[2]), limbs(branches, levelStart[1])];
     const canopies = crowns.map((geometry, level) => {
       const mesh = instanced(geometry, foliage, placements, vegetation, { name: `${species.preset} leaves ${level}` });
       if (level > 0) mesh.count = 0;
-      reflected.push({ mesh, far: crowns[2], current: geometry });
+      reflected.push({ mesh, far: crowns[3], current: geometry });
       return mesh;
     });
     const stems = trunks.map((geometry, level) => {
       const mesh = instanced(geometry, bark, placements, vegetation, { name: `${species.preset} branches ${level}` });
       if (level > 0) mesh.count = 0;
-      reflected.push({ mesh, far: trunks[2], current: geometry });
+      reflected.push({ mesh, far: trunks[3], current: geometry });
       return mesh;
     });
     const entries = placements.map((placement, index) => {
@@ -244,7 +279,7 @@ export async function createVegetation({ scene, plantings, renderer }) {
       return { matrix, tint: placement.tint ?? 0xffffff, bounds: new THREE.Sphere(new THREE.Vector3(placement.x, placement.y + radius * .6, placement.z), radius), reach: Math.max(1, placement.scale) };
     });
     batches.push({ stems, canopies, entries });
-    resources.push(crowns[1], crowns[2]);
+    resources.push(crowns[1], crowns[2], crowns[3]);
   }
 
   const lowPlants = new THREE.Group(); lowPlants.name = 'Lawn and hanging plants'; vegetation.add(lowPlants);
@@ -262,6 +297,7 @@ export async function createVegetation({ scene, plantings, renderer }) {
     const image = texture.image;
     return image && typeof image.decode === 'function' ? image.decode().catch(() => {}) : Promise.resolve();
   }));
+  for (const texture of leafTextures) keepLeafGaps(texture);
 
   const count = list => list.reduce((sum, placements) => sum + placements.length, 0);
   return {
@@ -277,7 +313,7 @@ export async function createVegetation({ scene, plantings, renderer }) {
           mirrored.copy(entry.bounds); mirrored.center.y *= -1;
           // Keep anything visible in either the camera or the mirrored water view.
           if (!frustum.intersectsSphere(entry.bounds) && !frustum.intersectsSphere(mirrored)) continue;
-          const distance = camera.position.distanceTo(entry.bounds.center) / entry.reach, level = distance < NEAR ? 0 : distance < MID ? 1 : 2;
+          const distance = camera.position.distanceTo(entry.bounds.center) / entry.reach, level = distance < NEAR ? 0 : distance < MID ? 1 : distance < FAR ? 2 : 3;
           const canopy = batch.canopies[level], stem = batch.stems[level];
           canopy.setColorAt(canopy.count, color.setHex(entry.tint)); canopy.setMatrixAt(canopy.count++, entry.matrix);
           stem.setMatrixAt(stem.count++, entry.matrix);

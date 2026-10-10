@@ -27,7 +27,26 @@ function pavingMaterial() {
 }
 
 export function cityFinishes({ facade, sky, sun }) {
+  // White architecture is assembled from glazed panels: fine joints, a breath of
+  // tone from one panel to the next, and a faint tide mark where it meets the sea.
   const porcelain = new THREE.MeshStandardMaterial({ color: 0xd9e0e3, roughness: .27, metalness: 0, envMapIntensity: 1 });
+  porcelain.onBeforeCompile = shader => {
+    shader.vertexShader = `varying vec3 vPanel; varying vec3 vPanelNormal;\n${shader.vertexShader}`
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPanel = (modelMatrix * vec4(transformed, 1.)).xyz; vPanelNormal = mat3(modelMatrix) * objectNormal;');
+    shader.fragmentShader = `varying vec3 vPanel; varying vec3 vPanelNormal;\n${shader.fragmentShader}`
+      .replace('#include <color_fragment>', `#include <color_fragment>
+      vec3 panelFacing = abs(normalize(vPanelNormal)), panel = vPanel / vec3(3.2, 1.45, 3.2);
+      vec3 panelWidth = fwidth(panel), joint = smoothstep(.5 - panelWidth * 1.3 - .004, vec3(.5), abs(fract(panel) - .5));
+      // A joint only shows where its plane actually cuts across the surface.
+      joint *= 1. - smoothstep(vec3(.55), vec3(.9), panelFacing);
+      float seam = max(joint.x, max(joint.y, joint.z)) * saturate(1. - max(panelWidth.x, max(panelWidth.y, panelWidth.z)) * 6.);
+      vec3 slab = floor(panel + .5);
+      float tone = fract(sin(dot(slab, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+      diffuseColor.rgb *= (1. - .2 * seam) * (.955 + .06 * tone);
+      diffuseColor.rgb *= mix(vec3(.74, .83, .8), vec3(1.), smoothstep(.02, .9, vPanel.y + .25 * tone));`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+      roughnessFactor = mix(roughnessFactor + .1 * tone, .6, seam);`);
+  };
   const silver = new THREE.MeshStandardMaterial({ color: 0xc9d8dc, roughness: .24, metalness: .92, envMapIntensity: 1.1 });
   return {
     white: { material: porcelain },
@@ -38,7 +57,7 @@ export function cityFinishes({ facade, sky, sun }) {
     rail: { material: clearGlass({ sky, sun, body: .1, glint: .25, side: THREE.DoubleSide }), shadow: false, receive: false },
     bubble: { material: clearGlass({ sky, sun, body: .035, base: .07, film: 1, glint: 1.6, tint: 0xd6fbff }), shadow: false, receive: false },
     soil: { material: new THREE.MeshStandardMaterial({ color: 0x3b3323, roughness: 1 }) },
-    glow: { material: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xdff8ff, emissiveIntensity: 2.6, roughness: .4 }), shadow: false },
+    glow: { material: new THREE.MeshStandardMaterial({ color: 0xf2f7f8, emissive: 0xdff8ff, emissiveIntensity: .55, roughness: .22 }), shadow: false },
     amber: { material: new THREE.MeshStandardMaterial({ color: 0xff9a2e, emissive: 0xff8a1e, emissiveIntensity: 1.5, roughness: .35 }), shadow: false },
     azure: { material: new THREE.MeshStandardMaterial({ color: 0x1c6fd6, emissive: 0x1f86ff, emissiveIntensity: 1.3, roughness: .3 }), shadow: false },
   };
@@ -298,7 +317,7 @@ export function buildCity({ add, plantings }) {
     const face = Math.atan2(-pod.frame.nz * pod.side, -pod.frame.nx * pod.side);
     // Two softly lit display bands wrap the side that faces the water.
     const band = (finish, from, to, low, high) => {
-      const rows = Array.from({ length: 13 }, (_, i) => { const a = face + from + (to - from) * i / 12; return [low, high].map(v => ({ x: x + Math.cos(a) * r * 1.012 * Math.cos(v), y: y + Math.sin(v) * r * .81, z: z + Math.sin(a) * r * 1.012 * Math.cos(v) })); });
+      const rows = Array.from({ length: 13 }, (_, i) => { const a = face + from + (to - from) * i / 12; return [low, high].map(v => ({ x: x + Math.cos(a) * r * 1.03 * Math.cos(v), y: y + Math.sin(v) * r * .824, z: z + Math.sin(a) * r * 1.03 * Math.cos(v) })); });
       add(finish, surface(rows, { away: { x, y, z } }), { detail: true });
     };
     band('amber', -.95, -.2, -.16, .2); band('azure', -.1, .95, -.16, .2);

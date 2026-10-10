@@ -1,9 +1,39 @@
 import * as THREE from 'three';
+import { skyLookup } from './glass.js';
+import { ground, towers, basin } from './layout.js';
+
+// A chart of the lagoon: for every point, how far it is from the nearest shore,
+// quay, podium or island. The water shader turns that into depth, so the canal
+// and the shallows around each island stay pale turquoise while open water
+// deepens to blue, as a real lagoon does from the air.
+function chartShallows() {
+  const size = 384, span = 660, left = -330, top = -400, texel = span / size, far = new Float32Array(size * size);
+  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+    const x = left + (i + .5) * texel, z = top + (j + .5) * texel;
+    const solid = ground(x, z).kind !== 'water' || towers.some(t => Math.hypot(x - t.x, z - t.z) < t.radius + 3.4) || Math.abs(Math.hypot(x - basin.x, z - basin.z) - 20.3) < 2.7;
+    far[j * size + i] = solid ? 0 : 1e6;
+  }
+  // Two sweeps of a chamfer distance transform, measured in texels.
+  const relax = (k, n, cost) => { if (far[n] + cost < far[k]) far[k] = far[n] + cost; };
+  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+    const k = j * size + i;
+    if (i > 0) relax(k, k - 1, 1); if (j > 0) { relax(k, k - size, 1); if (i > 0) relax(k, k - size - 1, 1.414); if (i < size - 1) relax(k, k - size + 1, 1.414); }
+  }
+  for (let j = size - 1; j >= 0; j--) for (let i = size - 1; i >= 0; i--) {
+    const k = j * size + i;
+    if (i < size - 1) relax(k, k + 1, 1); if (j < size - 1) { relax(k, k + size, 1); if (i < size - 1) relax(k, k + size + 1, 1.414); if (i > 0) relax(k, k + size - 1, 1.414); }
+  }
+  const data = new Uint8Array(size * size);
+  for (let k = 0; k < data.length; k++) data[k] = Math.min(255, far[k] * texel / 30 * 255);
+  const texture = new THREE.DataTexture(data, size, size, THREE.RedFormat);
+  texture.magFilter = texture.minFilter = THREE.LinearFilter; texture.needsUpdate = true;
+  return { texture, frame: new THREE.Vector3(left, top, 1 / span) };
+}
 
 // A shallow, sunlit lagoon. Near the camera you look down through clear water
 // to a pale bed laced with caustics; toward the horizon the surface turns into
 // a mirror of the real scene, rendered from below with a reflected camera.
-export function createWater({ renderer, scene, normals, sunDirection, sunColor }) {
+export function createWater({ renderer, scene, normals, sky, sunDirection, sunColor }) {
   const target = new THREE.WebGLRenderTarget(512, 512, { type: THREE.HalfFloatType });
   const mirrorCamera = new THREE.PerspectiveCamera(), textureMatrix = new THREE.Matrix4();
   const plane = new THREE.Plane(), clip = new THREE.Vector4(), q = new THREE.Vector4();
@@ -14,7 +44,8 @@ export function createWater({ renderer, scene, normals, sunDirection, sunColor }
     name: 'Lagoon', lights: true, fog: true,
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, THREE.UniformsLib.lights, {
       mirrorSampler: { value: null }, normalSampler: { value: null }, textureMatrix: { value: null }, time: { value: 0 },
-      sunDirection: { value: sunDirection.clone() }, sunColor: { value: new THREE.Color(sunColor) },
+      sunDirection: { value: sunDirection.clone() }, sunColor: { value: new THREE.Color(sunColor) }, mirrorAmount: { value: 1 },
+      shallows: { value: null }, shallowsFrame: { value: new THREE.Vector3() },
     }]),
     vertexShader: /* glsl */`
       uniform mat4 textureMatrix;
@@ -33,8 +64,9 @@ export function createWater({ renderer, scene, normals, sunDirection, sunColor }
         #include <shadowmap_vertex>
       }`,
     fragmentShader: /* glsl */`
-      uniform sampler2D mirrorSampler; uniform sampler2D normalSampler; uniform float time; uniform vec3 sunDirection; uniform vec3 sunColor;
+      uniform sampler2D mirrorSampler; uniform sampler2D normalSampler; uniform float time; uniform vec3 sunDirection; uniform vec3 sunColor; uniform float mirrorAmount; uniform sampler2D shallows; uniform vec3 shallowsFrame;
       varying vec4 mirrorCoord; varying vec4 worldPosition;
+      ${skyLookup}
       #include <common>
       #include <packing>
       #include <bsdfs>
@@ -64,15 +96,21 @@ export function createWater({ renderer, scene, normals, sunDirection, sunColor }
         vec3 normal = normalize(vec3(slope.x, 1., slope.y));
         float facing = max(dot(normal, view), 0.), fresnel = .035 + .965 * pow(1. - facing, 4.2);
         vec3 mirrored = texture2D(mirrorSampler, mirrorCoord.xy / mirrorCoord.w + slope * .09).rgb;
+        // The mirror only exists for the main camera; anything else sees the sky.
+        if (mirrorAmount < .5) mirrored = skyReflection(reflect(-view, normal), 0.);
 
         float lit = getShadowMask();
         vec3 into = refract(-view, normal, .75);
-        float path = 3.3 / max(-into.y, .1);
-        vec2 bed = worldPosition.xz + into.xz * path;
-        float sparkle = range < 120. ? caustics(bed) * (1. - range / 120.) : 0.;
-        vec3 floorLight = vec3(.6, .85, .8) * (.6 + lit * (.34 + sparkle * 1.5));
-        vec3 clear = exp(-path * vec3(.35, .068, .085));
-        vec3 body = floorLight * clear + vec3(.0, .4, .5) * (.78 + .22 * lit) * (1. - clear);
+        // Open water is deep; the canal and the margins of every island are shallow.
+        float open = texture2D(shallows, (worldPosition.xz - shallowsFrame.xy) * shallowsFrame.z).r;
+        float depth = mix(1.2, 30., open * open * (3. - 2. * open));
+        float path = depth / max(-into.y, .1);
+        vec2 bed = worldPosition.xz + into.xz * min(path, 9.);
+        float sparkle = range < 120. && open < .6 ? caustics(bed) * (1. - range / 120.) * (1. - open / .6) : 0.;
+        vec3 floorLight = vec3(.62, .86, .8) * (.6 + lit * (.34 + sparkle * 1.5)) * (1. + .22 * (1. - smoothstep(0., .07, open)));
+        // Water takes red first and blue last, so depth turns turquoise to blue.
+        vec3 clear = exp(-path * vec3(.38, .074, .046));
+        vec3 body = floorLight * clear + mix(vec3(.0, .36, .46), vec3(.004, .15, .33), open) * (.78 + .22 * lit) * (1. - clear);
 
         vec3 colour = mix(body, mirrored, fresnel);
         float glitter = pow(max(dot(normal, normalize(view + sunDirection)), 0.), 600.) * 18. * lit;
@@ -80,6 +118,9 @@ export function createWater({ renderer, scene, normals, sunDirection, sunColor }
         #include <fog_fragment>
       }`,
   });
+  Object.assign(material.uniforms, sky.uniforms);
+  const chart = chartShallows();
+  material.uniforms.shallows.value = chart.texture; material.uniforms.shallowsFrame.value.copy(chart.frame);
   material.uniforms.mirrorSampler.value = target.texture;
   material.uniforms.normalSampler.value = normals;
   material.uniforms.textureMatrix.value = textureMatrix;

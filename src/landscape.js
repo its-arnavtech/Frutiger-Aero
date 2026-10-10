@@ -18,7 +18,7 @@ export async function loadSurfaces(renderer) {
 // inside the spheres all share one continuous, seamless turf. The scanned grass
 // supplies blade-scale detail; the colour itself is graded to a watered lawn.
 function groundMaterial(maps, wild) {
-  const material = new THREE.MeshStandardMaterial({ map: maps.grass.color, normalMap: maps.grass.normal, normalScale: new THREE.Vector2(.7, .7), roughness: .94, envMapIntensity: .45 });
+  const material = new THREE.MeshStandardMaterial({ map: maps.grass.color, normalMap: maps.grass.normal, normalScale: new THREE.Vector2(1.5, 1.5), roughness: .9, envMapIntensity: .5 });
   material.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, { groundSand: { value: maps.sand.color }, groundRock: { value: maps.rock.color } });
     shader.vertexShader = `varying vec3 vLand; varying vec3 vLandNormal;\n${shader.vertexShader}`
@@ -26,16 +26,19 @@ function groundMaterial(maps, wild) {
     shader.fragmentShader = `varying vec3 vLand; varying vec3 vLandNormal; uniform sampler2D groundSand; uniform sampler2D groundRock;\n${shader.fragmentShader}`
       .replace('#include <map_fragment>', `
         vec2 turf = vLand.xz;
-        float blade = dot(texture2D(map, turf * .23).rgb, vec3(.3, .55, .15));
+        // Two scales of scanned grass: blades underfoot, texture from a distance.
+        float blade = dot(texture2D(map, turf * .23).rgb, vec3(.3, .55, .15)) * .6 + dot(texture2D(map, turf * .91 + .21).rgb, vec3(.3, .55, .15)) * .4;
         float mottle = texture2D(map, turf * .019 + .37).g, drift = texture2D(map, turf * .0043).r;
-        vec3 lush = mix(vec3(.028, .105, .012), vec3(.125, .27, .03), saturate(blade * 3.1 - .42));
-        lush *= .62 + .8 * mottle; lush = mix(lush, lush * vec3(1.3, 1.08, .6), saturate(drift * 2.4 - .55) * .5);
+        // The scan is dry and brown, so only its light and shade are used: the
+        // darkest blades map to deep green, the brightest to sunlit yellow-green.
+        vec3 lush = mix(vec3(.04, .1, .018), vec3(.25, .37, .075), saturate(blade * 7.5 - .5));
+        lush *= .74 + .5 * mottle; lush = mix(lush, lush * vec3(1.28, 1.1, .62), saturate(drift * 2.4 - .55) * .5);
         ${wild ? `
         float shore = 1. - smoothstep(.2, 2.4, vLand.y), steep = smoothstep(.36, .7, 1. - normalize(vLandNormal).y) * (1. - shore);
         vec3 canopy = lush * mix(vec3(.5, .68, .6), vec3(.86, .95, .7), saturate(mottle * 3. - .9));
         lush = mix(mix(canopy, texture2D(groundSand, turf * .09).rgb, shore), texture2D(groundRock, turf * .045).rgb * 1.1, steep);` : `
         // Faint mowing bands, as on any tended lawn.
-        lush *= .93 + .07 * sin(turf.x * 1.05 + turf.y * .62);`}
+        lush *= .9 + .1 * smoothstep(-.3, .3, sin(turf.x * .52 + turf.y * .31));`}
         diffuseColor.rgb = lush;`)
       .replace('#include <normal_fragment_maps>', THREE.ShaderChunk.normal_fragment_maps.replace('texture2D( normalMap, vNormalMapUv )', 'texture2D( normalMap, vLand.xz * .23 )'));
   };
