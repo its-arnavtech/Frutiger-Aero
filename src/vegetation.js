@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Tree, TreePreset } from '@dgreenheck/ez-tree';
+import { waitFor, yieldToBrowser } from './startup.js';
 import {
   TAU, frames, bankOuter, deckOuter, lawnHeight, islands, islandHeight, islandEdge, RIM,
   towers, pods, footbridge, rng,
@@ -219,7 +220,7 @@ function plant(plantings) {
   return groups;
 }
 
-export async function createVegetation({ scene, plantings, renderer }) {
+export async function createVegetation({ scene, plantings, renderer, signal }) {
   const time = { value: 0 };
   const vegetation = new THREE.Group(); vegetation.name = 'Living botanical landscape'; scene.add(vegetation);
   const reflected = [], batches = [], shrubs = [], resources = [], textures = new Set();
@@ -230,6 +231,7 @@ export async function createVegetation({ scene, plantings, renderer }) {
   let ashLeaves = null;
 
   for (let i = 0; i < SPECIES.length; i++) {
+    await yieldToBrowser(signal);
     const species = SPECIES[i], placements = groups[i], tree = new Tree();
     tree.options.copy(structuredClone(TreePreset[species.preset]));
     tree.options.seed = species.seed;
@@ -295,10 +297,10 @@ export async function createVegetation({ scene, plantings, renderer }) {
 
   // Texture images are embedded by EZ-Tree. Wait for their decode before the
   // first frame so the user never sees opaque leaf-card rectangles loading in.
-  await Promise.all([...textures].map(texture => {
+  await waitFor(Promise.all([...textures].map(texture => {
     const image = texture.image;
-    return image && typeof image.decode === 'function' ? image.decode().catch(() => {}) : Promise.resolve();
-  }));
+    return image && typeof image.decode === 'function' ? image.decode() : Promise.resolve();
+  })), { signal, timeoutMs: 15000, label: 'Loading the trees' });
   for (const texture of leafTextures) keepLeafGaps(texture);
 
   const count = list => list.reduce((sum, placements) => sum + placements.length, 0);

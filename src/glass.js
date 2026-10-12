@@ -15,8 +15,11 @@ export const skyLookup = /* glsl */`
     return fract((q.xxy + q.yzz) * q.zyx);
   }`;
 
-export function createSky(renderer, photograph, turn) {
-  const target = new THREE.WebGLCubeRenderTarget(1024, { type: THREE.HalfFloatType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+export function createSky(renderer, photograph, turn, profile) {
+  const type = profile.floatTargets ? THREE.HalfFloatType : THREE.UnsignedByteType;
+  const resources = [];
+  const target = new THREE.WebGLCubeRenderTarget(profile.skySize, { type: THREE.UnsignedByteType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+  resources.push(target);
   target.fromEquirectangularTexture(renderer, photograph);
   const rotation = new THREE.Euler(0, turn, 0);
   // Matches how the renderer turns a cube background.
@@ -28,20 +31,23 @@ export function createSky(renderer, photograph, turn) {
   // throws turquoise up under the quays and soffits, and lawns tint the walls
   // beside them, as bounced light does.
   function capture(scene, position, measuredSky) {
-    const probe = new THREE.WebGLCubeRenderTarget(768, { type: THREE.HalfFloatType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+    const probe = new THREE.WebGLCubeRenderTarget(profile.probeSize, { type, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+    resources.push(probe);
     const camera = new THREE.CubeCamera(1, 2000, probe);
     camera.position.copy(position); scene.add(camera);
     camera.update(renderer, scene);
     uniforms.cityCube.value = probe.texture;
-    const light = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType }), { background, backgroundIntensity } = scene;
+    if (!profile.floatTargets) { scene.remove(camera); return null; }
+    const light = new THREE.WebGLCubeRenderTarget(profile.lightSize, { type }), { background, backgroundIntensity } = scene;
     camera.renderTarget = light; scene.background = measuredSky; scene.backgroundIntensity = 1;
     camera.update(renderer, scene);
     scene.background = background; scene.backgroundIntensity = backgroundIntensity; scene.remove(camera);
-    const pmrem = new THREE.PMREMGenerator(renderer), surroundings = pmrem.fromCubemap(light.texture).texture;
+    const pmrem = new THREE.PMREMGenerator(renderer), surroundings = pmrem.fromCubemap(light.texture);
+    resources.push(surroundings);
     pmrem.dispose(); light.dispose();
-    return surroundings;
+    return surroundings.texture;
   }
-  return { cube: target.texture, rotation, uniforms, capture };
+  return { cube: target.texture, rotation, uniforms, capture, dispose() { for (const resource of resources) resource.dispose(); } };
 }
 
 // Where each row of rooms sits in the interior photograph, bottom row first, as

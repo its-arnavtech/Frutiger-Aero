@@ -10,6 +10,9 @@ import { createWater } from './water.js';
 import { createBoats } from './boats.js';
 import { createCinema } from './cinema.js';
 import { spheres, rng } from './layout.js';
+import { renderingProfile } from './quality.js';
+import { waitFor, yieldToBrowser } from './startup.js';
+import { compileWorld } from './gpu.js';
 
 const TAU = Math.PI * 2;
 
@@ -70,54 +73,89 @@ function createCascade(scene) {
   return material;
 }
 
-export async function createWorld(canvas) {
+export async function createWorld(canvas, { signal, onStage = () => yieldToBrowser(signal) } = {}) {
+  await onStage('Opening the lagoon');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+  const profile = renderingProfile({ width: innerWidth, height: innerHeight, dpr: devicePixelRatio,
+    coarsePointer: matchMedia('(pointer: coarse)').matches, deviceMemory: navigator.deviceMemory,
+    compact: new URLSearchParams(location.search).get('quality') === 'mobile',
+    low: new URLSearchParams(location.search).get('quality') === 'low',
+    maxTextureSize: renderer.capabilities.maxTextureSize,
+    floatTargets: renderer.extensions.has('EXT_color_buffer_float') || renderer.extensions.has('EXT_color_buffer_half_float'),
+  });
+  canvas.dataset.profile = profile.low ? 'low' : profile.mobile ? 'mobile' : 'desktop';
   // The canvas matches the screen; pixelRatio is the resolution the world
   // itself is drawn at, which the film pipeline enlarges to fill the canvas.
-  const canvasRatio = Math.min(devicePixelRatio, 2);
-  let pixelRatio = Math.min(canvasRatio, 1.5);
+  const canvasRatio = profile.canvasRatio;
+  let pixelRatio = profile.initialRatio;
   renderer.setPixelRatio(canvasRatio); renderer.setSize(innerWidth, innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; renderer.shadowMap.autoUpdate = false;
   renderer.info.autoReset = false;
   const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0xb3d2ee, .0017);
+  const resources = new Set(), cleanups = [];
+  const track = resource => { if (signal?.aborted) { resource?.dispose(); throw signal.reason; } if (resource) resources.add(resource); return resource; };
+  signal?.addEventListener('abort', () => {
+    scene.traverse(object => {
+      if (object.isInstancedMesh) object.dispose();
+      if (object.geometry) resources.add(object.geometry);
+      for (const material of [].concat(object.material || [])) {
+        resources.add(material);
+        for (const value of Object.values(material)) if (value?.isTexture) resources.add(value);
+      }
+    });
+    for (const cleanup of cleanups) cleanup();
+    for (const resource of resources) resource.dispose();
+    renderer.dispose();
+  }, { once: true });
   const camera = new THREE.PerspectiveCamera(55, Math.max(1, innerWidth) / Math.max(1, innerHeight), .3, 2200);
   camera.layers.enable(1);
 
   const loader = new THREE.TextureLoader();
-  const [hdr, photograph, waterNormals, maps, facade] = await Promise.all([
-    new HDRLoader().loadAsync('/assets/environment/kloofendal_48d_partly_cloudy_puresky_2k.hdr'),
-    loader.loadAsync('/assets/environment/kloofendal_48d_partly_cloudy_puresky_4k.jpg'),
-    loader.loadAsync('/assets/materials/waternormals.jpg'), loadSurfaces(renderer),
-    loader.loadAsync('/assets/materials/aero-glass-interiors.png'),
-  ]);
+  const load = (url, source = loader) => source.loadAsync(url).then(track);
+  await onStage('Loading water, glass and gardens');
+  const [hdr, photograph, waterNormals, maps, facade] = await waitFor(Promise.all([
+    profile.floatTargets ? load('/assets/environment/kloofendal_48d_partly_cloudy_puresky_2k.hdr', new HDRLoader()) : null,
+    load('/assets/environment/kloofendal_48d_partly_cloudy_puresky_4k.jpg'),
+    load('/assets/materials/waternormals.jpg'), loadSurfaces(renderer, load),
+    load('/assets/materials/aero-glass-interiors.png'),
+  ]), { signal, timeoutMs: 30000, label: 'Loading the landscape' });
+  await onStage('Lighting the sky');
   const sunDirection = new THREE.Vector3(-.5, .8, .6).normalize();
   const skyTurn = PHOTO_SUN_BEARING - Math.atan2(sunDirection.z, sunDirection.x);
   photograph.colorSpace = THREE.SRGBColorSpace;
-  const sky = createSky(renderer, photograph, skyTurn);
+  const sky = createSky(renderer, photograph, skyTurn, profile); cleanups.push(sky.dispose);
   scene.background = sky.cube; scene.backgroundRotation.copy(sky.rotation); scene.backgroundIntensity = 1.3;
-  hdr.mapping = THREE.EquirectangularReflectionMapping;
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const openSky = pmrem.fromEquirectangular(hdr).texture;
-  scene.environment = openSky; scene.environmentRotation.copy(sky.rotation); scene.environmentIntensity = .72;
-  pmrem.dispose();
+  photograph.dispose();
+  let openSky;
+  if (hdr) {
+    hdr.mapping = THREE.EquirectangularReflectionMapping;
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    openSky = track(pmrem.fromEquirectangular(hdr));
+    scene.environment = openSky.texture; scene.environmentRotation.copy(sky.rotation); scene.environmentIntensity = .72;
+    pmrem.dispose();
+  }
   facade.colorSpace = THREE.SRGBColorSpace; facade.wrapS = facade.wrapT = THREE.RepeatWrapping;
   facade.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
   scene.add(new THREE.HemisphereLight(0xdff3ff, 0x8fb7a8, .3));
   const sun = new THREE.DirectionalLight(0xfff3e0, 3.3);
   sun.target.position.set(4, 0, -44); sun.position.copy(sun.target.position).addScaledVector(sunDirection, 330);
-  sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+  sun.castShadow = true; sun.shadow.mapSize.set(profile.shadowSize, profile.shadowSize);
+  cleanups.push(() => sun.shadow.dispose());
   Object.assign(sun.shadow.camera, { left: -195, right: 175, top: 225, bottom: -140, near: 150, far: 480 });
   sun.shadow.camera.updateProjectionMatrix(); sun.shadow.bias = -.00025; sun.shadow.normalBias = .09; scene.add(sun, sun.target);
 
   const finishes = { ...cityFinishes({ facade, sky, sun: sunDirection, maps }), ...landFinishes(maps) };
   const batch = createBatcher(finishes), plantings = { trees: [], shrubs: [], vines: [] };
+  await onStage('Building the city');
   buildCity({ add: batch.add, plantings }); buildLandscape({ add: batch.add });
   const city = new THREE.Group(); city.name = 'Aero city'; scene.add(city);
   const meshes = batch.build(city, 'City');
-  const vegetation = await createVegetation({ scene, plantings, renderer });
-  const water = createWater({ renderer, scene, normals: waterNormals, sky, sunDirection, sunColor: 0xfff6e2 });
+  await onStage('Growing the gardens');
+  const vegetation = await createVegetation({ scene, plantings, renderer, signal }); cleanups.push(vegetation.dispose);
+  await onStage('Filling the lagoon');
+  const water = createWater({ renderer, scene, normals: waterNormals, sky, sunDirection, sunColor: 0xfff6e2, profile }); cleanups.push(water.dispose);
   const cascade = createCascade(scene);
   const boats = createBoats({ scene, sunDirection });
   createHaze(scene, scene.fog.color);
@@ -127,9 +165,9 @@ export async function createWorld(canvas) {
   const bubbles = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 18, 12), finishes.bubble.material, drifting.length), pose = new THREE.Object3D();
   bubbles.frustumCulled = false; bubbles.layers.set(1); scene.add(bubbles);
 
-  const cinema = createCinema(renderer, scene, camera);
+  const cinema = createCinema(renderer, scene, camera, { scale: pixelRatio / canvasRatio, occlusion: profile.occlusion, bloom: profile.bloom, floatTargets: profile.floatTargets }); cleanups.push(cinema.dispose);
   const resizeTargets = () => { const size = renderer.getDrawingBufferSize(new THREE.Vector2()); cinema.setScale(pixelRatio / canvasRatio); cinema.resize(); water.resize(size.x, size.y); };
-  resizeTargets();
+  const initialSize = renderer.getDrawingBufferSize(new THREE.Vector2()); water.resize(initialSize.x, initialSize.y);
 
   // Development switches: ?view=x,y,z,tx,ty,tz pins the camera, ?off=a,b disables stages.
   const query = new URLSearchParams(location.search), off = new Set((query.get('off') || '').split(','));
@@ -152,18 +190,27 @@ export async function createWorld(canvas) {
   aim(0, { x: 0, y: 0 });
   // Compile every shader and build the cached shadow map with all plants
   // present, before per-frame visibility starts trimming them.
-  await renderer.compileAsync(scene, camera);
+  await onStage('Preparing the light');
+  await compileWorld(renderer, scene, camera, { signal });
   renderer.shadowMap.needsUpdate = true;
   // A cube-map photograph of the finished city gives every pane of glass real
   // surroundings to reflect, and every surface the light bounced from them.
   water.material.uniforms.mirrorAmount.value = 0;
+  await onStage('Reflecting the city');
   if (!off.has('bounce')) {
-    scene.environment = sky.capture(scene, new THREE.Vector3(1, 30, -26), hdr);
-    scene.environmentRotation.set(0, 0, 0); scene.environmentIntensity = .74; openSky.dispose();
+    // Captures need silhouettes, not twelve full-detail renders of every tree.
+    if (profile.mobile) vegetation.reflectionBegin();
+    try {
+      scene.environment = sky.capture(scene, new THREE.Vector3(1, 30, -26), hdr);
+    } finally { if (profile.mobile) vegetation.reflectionEnd(); }
+    scene.environmentRotation.set(0, 0, 0); scene.environmentIntensity = .74; openSky?.dispose();
   }
-  hdr.dispose();
+  hdr?.dispose();
   water.material.uniforms.mirrorAmount.value = 1;
+  await onStage('Opening your daydream');
+  vegetation.update(0, camera);
   cinema.render();
+  if (renderer.getContext().isContextLost()) throw new Error('The graphics connection was interrupted. Try the lighter rendering mode.');
 
   let liveTime = 0, slow = 0, frames = 0, sampleTime = performance.now(), step = 0, shown = 0;
   // A frame should cost the GPU no more than this many milliseconds.
@@ -227,7 +274,7 @@ export async function createWorld(canvas) {
   // Before the curtain lifts, time a few real frames and fit the picture to this
   // GPU, so the flight starts smooth instead of stepping down while you watch.
   // A page opened in a hidden pane has no size yet, so it is fitted on first resize.
-  let fitted = off.has('economy');
+  let fitted = off.has('economy') || !profile.calibrate;
   function fit() {
     if (fitted || innerWidth < 64 || innerHeight < 64) return;
     fitted = true;
@@ -248,6 +295,6 @@ export async function createWorld(canvas) {
     canvas.dataset.calibration = `${ms.toFixed(1)}ms`; timed = 0;
   }
   fit();
-  function resize() { camera.aspect = Math.max(1, innerWidth) / Math.max(1, innerHeight); camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); resizeTargets(); fit(); }
-  return { render, resize, renderer, scene, camera, cinema, meshes, boats, switches: off, pin(view) { fixed = view; } };
+  function resize() { if (signal?.aborted) return; camera.aspect = Math.max(1, innerWidth) / Math.max(1, innerHeight); camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); resizeTargets(); fit(); }
+  return { render, resize, renderer, scene, camera, cinema, meshes, boats, profile, switches: off, pin(view) { fixed = view; } };
 }

@@ -132,11 +132,12 @@ const presentShader = /* glsl */`
     gl_FragColor = vec4(clamp((lobe * (n + s + e + w) + c) / (4. * lobe + 1.), 0., 1.), 1.);
   }`;
 
-export function createCinema(renderer, scene, camera) {
+export function createCinema(renderer, scene, camera, options = {}) {
   const quad = new FullScreenQuad(), size = new THREE.Vector2(), LEVELS = 5;
   // scale is the resolution the world is drawn at, as a share of the canvas.
-  const quality = { samples: 0, occlusion: true, bloom: true, glow: .05, scale: 1, sharpness: .7 };
-  const half = { type: THREE.HalfFloatType, depthBuffer: false };
+  const quality = { samples: 0, occlusion: true, bloom: true, glow: .05, scale: 1, sharpness: .7, ...options };
+  const type = options.floatTargets === false ? THREE.UnsignedByteType : THREE.HalfFloatType;
+  const half = { type, depthBuffer: false };
   let sceneTarget, graded, smoothed, aoA, aoB, mips = [];
 
   const occlude = pass(occlusionShader, { tDepth: { value: null }, projection: { value: camera.projectionMatrix }, unprojection: { value: camera.projectionMatrixInverse }, texel: { value: new THREE.Vector2() }, radius: { value: 2.2 }, strength: { value: 1 } }, { defines: { SAMPLES: 8 } });
@@ -153,12 +154,13 @@ export function createCinema(renderer, scene, camera) {
     for (const target of [sceneTarget, graded, smoothed, aoA, aoB, ...mips]) target?.dispose();
     renderer.getDrawingBufferSize(size);
     const w = Math.max(2, Math.round(size.x * quality.scale)), h = Math.max(2, Math.round(size.y * quality.scale)), depth = new THREE.DepthTexture(w, h);
-    sceneTarget = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: quality.samples, depthTexture: depth });
+    sceneTarget = new THREE.WebGLRenderTarget(w, h, { type, samples: quality.samples, depthTexture: depth });
     graded = new THREE.WebGLRenderTarget(w, h, { depthBuffer: false });
     smoothed = quality.samples ? null : new THREE.WebGLRenderTarget(w, h, { depthBuffer: false });
     const hw = Math.ceil(w / 2), hh = Math.ceil(h / 2);
-    aoA = new THREE.WebGLRenderTarget(hw, hh, { depthBuffer: false }); aoB = new THREE.WebGLRenderTarget(hw, hh, { depthBuffer: false });
-    mips = Array.from({ length: LEVELS }, (_, i) => new THREE.WebGLRenderTarget(Math.max(1, w >> (i + 1)), Math.max(1, h >> (i + 1)), half));
+    aoA = quality.occlusion ? new THREE.WebGLRenderTarget(hw, hh, { depthBuffer: false }) : null;
+    aoB = quality.occlusion ? new THREE.WebGLRenderTarget(hw, hh, { depthBuffer: false }) : null;
+    mips = quality.bloom ? Array.from({ length: LEVELS }, (_, i) => new THREE.WebGLRenderTarget(Math.max(1, w >> (i + 1)), Math.max(1, h >> (i + 1)), half)) : [];
   }
   function draw(material, target) { quad.material = material; renderer.setRenderTarget(target); quad.render(renderer); }
   build();
@@ -207,6 +209,11 @@ export function createCinema(renderer, scene, camera) {
     resize: build,
     setScale(scale) { quality.scale = scale; },
     setSamples(samples) { quality.samples = samples; build(); },
+    dispose() {
+      for (const target of [sceneTarget, graded, smoothed, aoA, aoB, ...mips]) target?.dispose();
+      for (const material of [occlude, soften, shrink, grow, grade, smooth, present]) material.dispose();
+      white.dispose(); black.dispose(); quad.dispose();
+    },
     grade: grade.uniforms, occlude: occlude.uniforms,
   };
 }

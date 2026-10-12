@@ -14,7 +14,7 @@
       <canvas id="world" aria-label="A live 3D city of glass towers on a turquoise lagoon. Scroll to fly along the canal, through the gateway, around the floating garden and out over the islands."></canvas>
       <div id="atmosphere" aria-hidden="true"></div>
       <div class="vignette" aria-hidden="true"></div>
-      <div id="loading" aria-live="polite"><div class="loading-orb"></div><span>Entering a little daydream</span></div>
+      <div id="loading" aria-live="polite" data-state="loading"><div class="loading-orb"></div><span>Entering a little daydream</span><div id="loading-recovery" hidden><button id="retry">Try again</button><button id="retry-light">Try lighter rendering</button></div></div>
       <header class="hud">
         <button id="home" class="world-mark" aria-label="Return to the beginning" title="Return to the beginning"><span class="mark-orb"></span></button>
         <div class="top-controls">
@@ -32,6 +32,6 @@
       <div id="notice" role="status"></div>
     </main>
     <div id="scroll-space" aria-hidden="true"></div>
-    <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/boot.js"></script>
   </body>
 </html>

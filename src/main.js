@@ -1,4 +1,3 @@
-import './style.css';
 import { createWorld } from './world';
 import { createAmbience } from './audio';
 import { clamp, places } from './journey';
@@ -8,6 +7,7 @@ const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 const scrubber=$('#scrubber'),playButton=$('#play'),soundButton=$('#sound');
 let progress=0,target=0,playing=false,last=performance.now(),world,atmosphere,frameId;
 let pointer={x:0,y:0},pointerTarget={x:0,y:0};
+let running=false,reportError=console.error;
 const ambience=createAmbience(),FLIGHT_SECONDS=170;
 const scrollRange=()=>Math.max(1,document.documentElement.scrollHeight-innerHeight);
 function seek(value){target=clamp(value);window.scrollTo({top:target*scrollRange(),behavior:'instant'});}
@@ -39,9 +39,11 @@ addEventListener('keydown',event=>{
  if(['ArrowDown','ArrowUp','PageDown','PageUp'].includes(event.code))setPlaying(false);
 });
 addEventListener('resize',()=>{world?.resize();atmosphere?.resize();seek(target);});
-document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(frameId);ambience.suspend();}else{last=performance.now();ambience.resume();frameId=requestAnimationFrame(frame);}});
+document.addEventListener('visibilitychange',()=>{cancelAnimationFrame(frameId);if(document.hidden){ambience.suspend();}else if(running){last=performance.now();ambience.resume();frameId=requestAnimationFrame(frame);}});
 
 function frame(now){
+ if(!running)return;
+ try{
  const dt=Math.min((now-last)/1000,.05);last=now;
  if(playing){seek(target+dt/FLIGHT_SECONDS);if(target>=1)setPlaying(false);}
  const ease=reducedMotion.matches?1:1-Math.exp(-dt*7.5);
@@ -56,12 +58,20 @@ function frame(now){
  const here=places.findLastIndex(place=>place.progress<=progress+.012);
  waypoints.forEach((button,index)=>{const active=index===here;button.classList.toggle('active',active);button.setAttribute('aria-current',active?'step':'false');});
  frameId=requestAnimationFrame(frame);
+ }catch(error){running=false;reportError(error);}
 }
 
-async function init(){
+export async function init({signal,onStage,onError}){
+ reportError=onError;
+ signal.addEventListener('abort',()=>{running=false;cancelAnimationFrame(frameId);ambience.suspend();atmosphere?.dispose();},{once:true});
  target=clamp(scrollY/scrollRange());progress=target;
- try{world=await createWorld($('#world'));if(import.meta.env.DEV)window.__aero=world;}catch(error){console.error('World renderer unavailable:',error);$('#world').style.display='none';$('#fallback').textContent='This 3D world needs WebGL. Please enable hardware acceleration or open it in another browser.';}
- try{const {createAtmosphere}=await import('./atmosphere');atmosphere=createAtmosphere();}catch(error){console.warn('Optional atmosphere unavailable:',error);}
- $('#loading').classList.add('loaded');last=performance.now();frameId=requestAnimationFrame(frame);
+ world=await createWorld($('#world'),{signal,onStage});
+ if(signal.aborted)throw signal.reason;
+ if(import.meta.env.DEV)window.__aero=world;
+ world.render(Math.min(progress,.9995),pointer,0,reducedMotion.matches);
+ running=true;last=performance.now();frameId=requestAnimationFrame(frame);
+ // Optional motes must never hold the whole 3D world behind its loading screen.
+ if(world.profile.atmosphere)import('./atmosphere').then(({createAtmosphere})=>{
+   if(!signal.aborted)atmosphere=createAtmosphere();
+ }).catch(error=>console.warn('Optional atmosphere unavailable:',error));
 }
-init();

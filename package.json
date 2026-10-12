@@ -7,7 +7,8 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test"
+    "test": "node --test tests/*.test.js",
+    "test:mobile": "npm run build && node tests/mobile-server.mjs"
   },
   "dependencies": {
     "@babylonjs/core": "^8.32.0",

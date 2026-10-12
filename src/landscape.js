@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { sweep, surface } from './build.js';
 import { TAU, islands, islandHeight, islandEdge, RIM } from './layout.js';
 
-export async function loadSurfaces(renderer) {
+export async function loadSurfaces(renderer, load) {
   const loader = new THREE.TextureLoader(), anisotropy = renderer.capabilities.getMaxAnisotropy();
+  load ||= url => loader.loadAsync(url);
   async function set(name) {
-    const [color, normal, roughness] = await Promise.all(['diff', 'nor_gl', 'rough'].map(kind => loader.loadAsync(`/assets/materials/${name}_${kind}_1k.jpg`)));
+    const [color, normal, roughness] = await Promise.all(['diff', 'nor_gl', 'rough'].map(kind => load(`/assets/materials/${name}_${kind}_1k.jpg`)));
     color.colorSpace = THREE.SRGBColorSpace;
     for (const texture of [color, normal, roughness]) { texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.anisotropy = anisotropy; }
     return { color, normal, roughness };

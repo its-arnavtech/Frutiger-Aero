@@ -47,3 +47,13 @@ Three.js renders the world. Babylon.js supplies the Catmull–Rom splines for th
 For inspection and profiling, `?view=x,y,z,tx,ty,tz` pins the camera to a position and target, `?samples=0|2|4` forces the antialiasing mode, and `?off=` takes a comma-separated list of stages to disable (`economy`, `mirror`, `ao`, `bloom`, `bounce`, `veg`, `city`, `boats`, `water`, `fog`).
 
 No backend, API keys, or external asset services are needed at runtime. Asset sources and licenses are documented in [docs/assets.md](docs/assets.md). The original imagegen artwork remains in `public/art/` as visual reference only; its prompts are recorded in [public/art/prompts.md](public/art/prompts.md).
+
+## Phone loading
+
+Phones select a smaller reflection, shadow and post-processing budget before
+allocating GPU buffers, keep full-detail foliage throughout the route, and skip
+the blocking startup benchmark and optional 2D motes. The loading screen reports
+progress and offers retry or lighter rendering if downloads, shader preparation,
+or the graphics context fail. `?quality=mobile` selects this budget explicitly.
+See [mobile regression cases](docs/mobile-testing.md) for automated tests and
+the local production-bundle fault-injection server.

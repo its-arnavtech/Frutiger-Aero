@@ -20,5 +20,5 @@ export function createAtmosphere(){
    }
  }
  const game=new Phaser.Game({type:Phaser.CANVAS,parent:'atmosphere',width:innerWidth,height:innerHeight,transparent:true,banner:false,audio:{noAudio:true},scene:Atmosphere,fps:{target:30,limit:30},input:{mouse:false,touch:false,keyboard:false},scale:{mode:Phaser.Scale.RESIZE}});
- return {render(p,point){progress=p;pointer=point;game.events.emit('journey-frame');},resize(){game.scale.resize(innerWidth,innerHeight);}};
+ return {render(p,point){progress=p;pointer=point;game.events.emit('journey-frame');},resize(){game.scale.resize(innerWidth,innerHeight);},dispose(){game.destroy(true);}};
 }

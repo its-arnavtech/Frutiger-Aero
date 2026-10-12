@@ -33,8 +33,8 @@ function chartShallows() {
 // A shallow, sunlit lagoon. Near the camera you look down through clear water
 // to a pale bed laced with caustics; toward the horizon the surface turns into
 // a mirror of the real scene, rendered from below with a reflected camera.
-export function createWater({ renderer, scene, normals, sky, sunDirection, sunColor }) {
-  const target = new THREE.WebGLRenderTarget(512, 512, { type: THREE.HalfFloatType });
+export function createWater({ renderer, scene, normals, sky, sunDirection, sunColor, profile }) {
+  const target = new THREE.WebGLRenderTarget(512, 512, { type: profile.floatTargets ? THREE.HalfFloatType : THREE.UnsignedByteType });
   const mirrorCamera = new THREE.PerspectiveCamera(), textureMatrix = new THREE.Matrix4();
   const plane = new THREE.Plane(), clip = new THREE.Vector4(), q = new THREE.Vector4();
   const up = new THREE.Vector3(0, 1, 0), eye = new THREE.Vector3(), look = new THREE.Vector3(), rotation = new THREE.Matrix4();
@@ -164,8 +164,8 @@ export function createWater({ renderer, scene, normals, sky, sunDirection, sunCo
     mesh.visible = true;
   }
   function resize(width, height) {
-    const scale = Math.min(.5, 960 / width);
+    const scale = Math.min(.5, profile.mirrorSize / Math.max(width, height));
     target.setSize(Math.max(64, Math.round(width * scale)), Math.max(64, Math.round(height * scale)));
   }
-  return { mesh, material, update, resize };
+  return { mesh, material, update, resize, dispose() { target.dispose(); chart.texture.dispose(); } };
 }
