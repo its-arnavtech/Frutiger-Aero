@@ -4,20 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#62cbe5" />
-    <meta name="description" content="An endless summer, somewhere inside a dream. Scroll to fly through a Frutiger Aero city of glass, water and gardens." />
-    <title>Aerō — a world to drift through</title>
+    <meta name="description" content="Choose a world and drift through it. Immersive scroll-controlled journeys through glass cities and autumn forests." />
+    <title>Aerō — worlds to drift through</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body>
-    <main id="experience" aria-label="A scroll-controlled flight through a Frutiger Aero city">
+    <main id="experience" aria-label="A scroll-controlled world">
       <div id="fallback"></div>
-      <canvas id="world" aria-label="A live 3D city of glass towers on a turquoise lagoon. Scroll to fly along the canal, through the gateway, around the floating garden and out over the islands."></canvas>
+      <canvas id="world" aria-label="A living autumn valley. Scroll along the amber river, under the lantern bridge, through the village, around the ancient maple and above the golden forest."></canvas>
       <div id="atmosphere" aria-hidden="true"></div>
       <div class="vignette" aria-hidden="true"></div>
-      <div id="loading" aria-live="polite" data-state="loading"><div class="loading-orb"></div><span>Entering a little daydream</span><div id="loading-recovery" hidden><button id="retry">Try again</button><button id="retry-light">Try lighter rendering</button></div></div>
+      <div id="loading" aria-live="polite" data-state="loading"><div class="loading-orb"></div><span>Following the last light</span><div id="loading-recovery" hidden><button id="retry">Try again</button><button id="retry-light">Try lighter rendering</button></div></div>
       <header class="hud">
         <button id="home" class="world-mark" aria-label="Return to the beginning" title="Return to the beginning"><span class="mark-orb"></span></button>
         <div class="top-controls">
+          <button id="choose-world" class="glass-button theme-trigger" aria-label="Choose a world" aria-haspopup="dialog" aria-expanded="false"><span class="worlds-icon" aria-hidden="true">◈</span><span id="theme-name">Worlds</span><span aria-hidden="true">⌄</span></button>
           <button id="sound" class="glass-button" aria-label="Enable ambient sound" aria-pressed="false" title="Ambient sound"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path class="sound-waves" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="sound-mute" d="m16 9 6 6m0-6-6 6"/></svg></button>
           <button id="fullscreen" class="glass-button" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button>
         </div>
@@ -31,6 +32,11 @@
       </footer>
       <div id="notice" role="status"></div>
     </main>
+    <dialog id="world-picker" aria-labelledby="world-picker-title">
+      <div class="picker-heading"><div><span class="picker-eyebrow">SOMEWHERE ELSE</span><h1 id="world-picker-title">Choose your world</h1></div><button id="close-worlds" aria-label="Close world picker">×</button></div>
+      <div id="available-worlds"></div>
+      <div id="future-worlds" aria-label="Future worlds"></div>
+    </dialog>
     <div id="scroll-space" aria-hidden="true"></div>
     <script type="module" src="/src/boot.js"></script>
   </body>

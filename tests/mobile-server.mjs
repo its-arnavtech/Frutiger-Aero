@@ -13,7 +13,7 @@ http.createServer(async (request, response) => {
   const fault = ['asset', 'bundle', 'no-webgl', 'context-loading', 'context-ready'].includes(requestedFault) ? requestedFault : null;
   const path = resolve(root, `.${decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)}`);
   if (!path.startsWith(root + sep)) { response.writeHead(403).end(); return; }
-  if ((fault === 'asset' && path.endsWith('aero-glass-interiors.png')) || (fault === 'bundle' && /[\\/]main-[^\\/]+\.js$/.test(path))) {
+  if ((fault === 'asset' && (path.endsWith('aero-glass-interiors.png') || path.endsWith('maple-leaf.png'))) || (fault === 'bundle' && /[\\/]main-[^\\/]+\.js$/.test(path))) {
     response.writeHead(503).end('Deliberate regression-test failure'); return;
   }
   try {

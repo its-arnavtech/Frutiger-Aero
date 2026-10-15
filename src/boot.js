@@ -1,4 +1,6 @@
 import './style.css';
+import './themes.css';
+import './theme-picker.js';
 import { createStartup, loadingMessage } from './startup.js';
 
 const loading = document.querySelector('#loading');

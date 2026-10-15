@@ -62,7 +62,7 @@ function addWind(material, time, { leaf = false } = {}) {
 // Ordinary mipmaps average a spray of leaves into a solid blob. These are built
 // so every level keeps the same share of open gaps as the original photograph,
 // which is what keeps a crown reading as leaves rather than as green putty.
-function keepLeafGaps(texture, cutoff = .42) {
+export function keepLeafGaps(texture, cutoff = .42) {
   const image = texture.image;
   if (!image?.width || texture.mipmaps.length) return;
   const chain = document.createElement('canvas'), half = document.createElement('canvas'), levels = [];
@@ -103,7 +103,7 @@ function instanced(geometry, material, placements, parent, { shadows = true, nam
 }
 
 // Round the shading of the crown and darken the sprays buried inside it.
-function shapeCrown(geometry, random) {
+export function shapeCrown(geometry, random) {
   geometry.computeBoundingBox();
   const box = geometry.boundingBox, center = box.getCenter(new THREE.Vector3()), half = box.getSize(new THREE.Vector3()).multiplyScalar(.5);
   const pos = geometry.attributes.position, normals = geometry.attributes.normal, colors = new Float32Array(pos.count * 3);
@@ -127,7 +127,7 @@ function shapeCrown(geometry, random) {
 // A lighter crown for distant trees. It keeps one spray in every `keep`, drawn
 // from the outer, sunlit shell that carries the silhouette, and enlarges and
 // brightens them so the tree holds its mass and colour as it recedes.
-function thinned(source, keep, enlargement, lift = 1) {
+export function thinned(source, keep, enlargement, lift = 1) {
   const result = new THREE.BufferGeometry(), arrays = { position: [], normal: [], uv: [], color: [] }, indices = [], attributes = source.attributes;
   const center = new THREE.Vector3(), p = new THREE.Vector3(), sprays = attributes.position.count >> 2;
   const outer = Array.from({ length: sprays }, (_, i) => i).sort((a, b) => attributes.color.getY(b * 4) - attributes.color.getY(a * 4)).slice(0, Math.ceil(sprays * 2 / keep));
@@ -149,7 +149,7 @@ function thinned(source, keep, enlargement, lift = 1) {
   return result;
 }
 
-function limbs(source, indexCount) {
+export function limbs(source, indexCount) {
   const geometry = new THREE.BufferGeometry();
   for (const [name, attribute] of Object.entries(source.attributes)) geometry.setAttribute(name, attribute);
   geometry.setIndex(new THREE.BufferAttribute(source.index.array.subarray(0, Math.min(indexCount ?? Infinity, source.index.count)), 1));

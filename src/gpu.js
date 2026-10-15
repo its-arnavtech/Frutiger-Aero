@@ -17,7 +17,14 @@ export async function compileWorld(renderer, scene, camera, { signal, timeoutMs 
       if (!extension || programs.every(program => gl.getProgramParameter(program, extension.COMPLETION_STATUS_KHR))) break;
       await yieldToBrowser(compilation.signal);
     }
-    if (programs.some(program => !gl.getProgramParameter(program, gl.LINK_STATUS))) throw new Error('This browser could not prepare the world graphics.');
+    const failed = programs.filter(program => !gl.getProgramParameter(program, gl.LINK_STATUS));
+    if (failed.length) {
+      for (const program of failed) {
+        const details = (gl.getAttachedShaders?.(program) || []).map(shader => gl.getShaderInfoLog(shader)).filter(Boolean);
+        console.error('World shader compilation:', gl.getProgramInfoLog?.(program) || '', ...details);
+      }
+      throw new Error('This browser could not prepare the world graphics.');
+    }
   };
   try { await waitFor(poll(), { signal, timeoutMs, label: 'Preparing the light' }); }
   finally { compilation.abort(new Error('Shader preparation finished')); }

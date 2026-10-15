@@ -1,6 +1,7 @@
-import { createWorld } from './world';
 import { createAmbience } from './audio';
-import { clamp, places } from './journey';
+import { loadTheme, resolveTheme } from './themes.js';
+const clamp = v => Math.max(0, Math.min(1, v));
+let places = [], waypoints = [];
 
 const $=s=>document.querySelector(s);
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
@@ -22,17 +23,18 @@ playButton.addEventListener('click',()=>{if(progress>.999)seek(0);setPlaying(!pl
 $('#replay').addEventListener('click',()=>{setPlaying(false);seek(0);});
 $('#home').addEventListener('click',()=>{setPlaying(false);seek(0);});
 // The dots and timeline marks are the named places along the flight.
-const waypoints=places.map(place=>{
+function buildWaypoints(){waypoints=places.map(place=>{
  const button=document.createElement('button');button.className='waypoint';button.title=place.name;button.setAttribute('aria-label',place.name);button.append(document.createElement('span'));
  button.addEventListener('click',()=>{setPlaying(false);seek(place.progress);});$('.waypoints').append(button);
  if(place.progress>0&&place.progress<1){const mark=document.createElement('span');mark.className='timeline-marker';mark.style.left=`${place.progress*100}%`;$('.timeline').append(mark);}
  return button;
-});
+});}
+document.addEventListener('worldpickeropen',()=>setPlaying(false));
 soundButton.addEventListener('click',async()=>{try{const enabled=await ambience.toggle();soundButton.setAttribute('aria-pressed',String(enabled));soundButton.setAttribute('aria-label',enabled?'Mute ambient sound':'Enable ambient sound');}catch{notice('Ambient sound is unavailable in this browser.');}});
 $('#fullscreen').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{notice('Fullscreen is unavailable in this browser.');}});
 addEventListener('fullscreenchange',()=>$('#fullscreen').setAttribute('aria-label',document.fullscreenElement?'Exit fullscreen':'Enter fullscreen'));
 addEventListener('keydown',event=>{
- if(event.target.matches('input,button'))return;
+ if(event.target.matches('input,button,a')||$('#world-picker').open)return;
  if(event.code==='Space'){event.preventDefault();if(progress>.999)seek(0);setPlaying(!playing);}
  if(event.code==='Home'){event.preventDefault();setPlaying(false);seek(0);}
  if(event.code==='End'){event.preventDefault();setPlaying(false);seek(1);}
@@ -65,6 +67,9 @@ export async function init({signal,onStage,onError}){
  reportError=onError;
  signal.addEventListener('abort',()=>{running=false;cancelAnimationFrame(frameId);ambience.suspend();atmosphere?.dispose();},{once:true});
  target=clamp(scrollY/scrollRange());progress=target;
+ const loaded=await loadTheme(resolveTheme(location.search).id);
+ if(signal.aborted)throw signal.reason;
+ const {createWorld}=loaded;places=loaded.places;buildWaypoints();
  world=await createWorld($('#world'),{signal,onStage});
  if(signal.aborted)throw signal.reason;
  if(import.meta.env.DEV)window.__aero=world;
