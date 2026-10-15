@@ -27,10 +27,14 @@ for (const theme of themes) {
   if (theme.available) { const arrow = document.createElement('span'); arrow.className = 'theme-arrow'; arrow.textContent = theme.id === activeTheme.id ? '✓' : '↗'; choice.append(arrow); }
   document.querySelector(theme.available ? '#available-worlds' : '#future-worlds').append(choice);
 }
-trigger.addEventListener('click', () => {
+let opener = trigger;
+function openPicker(event) {
+  opener = event.currentTarget;
   picker.showModal(); trigger.setAttribute('aria-expanded', 'true');
   document.dispatchEvent(new Event('worldpickeropen'));
-});
+}
+trigger.addEventListener('click', openPicker);
+document.querySelector('#retry-worlds').addEventListener('click', openPicker);
 document.querySelector('#close-worlds').addEventListener('click', () => picker.close());
 picker.addEventListener('click', event => { if (event.target === picker) { const bounds = picker.getBoundingClientRect(); if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) picker.close(); } });
-picker.addEventListener('close', () => { trigger.setAttribute('aria-expanded', 'false'); trigger.focus(); });
+picker.addEventListener('close', () => { trigger.setAttribute('aria-expanded', 'false'); opener.focus(); });

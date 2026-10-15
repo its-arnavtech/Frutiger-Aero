@@ -12,6 +12,8 @@
 [data-theme=autumn] #loading-recovery button{color:#514d40;background:#fff8e7a0}
 .theme-trigger{width:auto;min-width:116px;border-radius:24px;display:flex;gap:9px;padding:0 14px;font-size:11px;letter-spacing:.04em}
 .worlds-icon{font-size:19px;opacity:.9}
+html:has(#world-picker[open]){overflow:hidden}
+#retry-worlds{flex-basis:100%;font-size:12px;opacity:.8}
 #world-picker{width:min(470px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:30px;color:#f7fcfb;border:1px solid #ffffff42;border-radius:26px;background:linear-gradient(145deg,#263f43ed,#182b2ced);backdrop-filter:blur(24px);box-shadow:0 24px 90px #061b2766;overflow:auto}
 [data-theme=autumn] #world-picker{background:linear-gradient(145deg,#454538ed,#262f2aed)}
 #world-picker::backdrop{background:#10201f55;backdrop-filter:blur(6px)}

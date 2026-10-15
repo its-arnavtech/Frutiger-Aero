@@ -9,7 +9,8 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 http.createServer(async (request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1:5174');
   const referer = new URL(request.headers.referer || url);
-  const requestedFault = url.searchParams.get('fault') || referer.searchParams.get('fault');
+  const page = url.pathname === '/' || url.pathname === '/index.html';
+  const requestedFault = url.searchParams.get('fault') || (!page && referer.searchParams.get('fault'));
   const fault = ['asset', 'bundle', 'no-webgl', 'context-loading', 'context-ready'].includes(requestedFault) ? requestedFault : null;
   const path = resolve(root, `.${decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)}`);
   if (!path.startsWith(root + sep)) { response.writeHead(403).end(); return; }

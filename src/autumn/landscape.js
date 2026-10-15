@@ -24,14 +24,15 @@ export function buildTerrain(scene, maps) {
   // A succession of jagged mountain ridges, each paler through the atmosphere.
   for (let ridge = 0; ridge < 4; ridge++) {
     const random = rng(903 + ridge), g = new THREE.PlaneGeometry(2000, 600, 180, 30); g.rotateX(-Math.PI / 2);
-    const p = g.attributes.position, col = [], base = new THREE.Color(['#686f70', '#85868a', '#a5a1a1', '#b6a6a5'][ridge]);
+    const p = g.attributes.position, ridgeUv = g.attributes.uv, col = [], base = new THREE.Color(['#686f70', '#85868a', '#a5a1a1', '#b6a6a5'][ridge]);
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), z = p.getZ(i), envelope = Math.max(0, Math.sin((z + 300) / 600 * Math.PI));
       const peaks = 55 + 145 * Math.pow(1 - Math.abs(Math.sin(x * .006 + ridge * 2)), .65)
         + 40 * Math.abs(Math.sin(x * .023 + ridge)) + 23 * Math.abs(Math.sin(x * .061 + z * .013));
       const height = peaks * Math.pow(envelope, .8) + (random() - .5) * 12 * envelope;
       p.setY(i, height - 10); p.setZ(i, z - 660 - ridge * 300);
-      const c = base.clone().lerp(new THREE.Color('#eee3d8'), smooth(148, 215, height) * .55); col.push(c.r, c.g, c.b);
+      ridgeUv.setXY(i, x * .016, (z + height) * .016);
+      const c = base.clone().lerp(new THREE.Color('#c3beb2'), smooth(148, 215, height) * .18); col.push(c.r, c.g, c.b);
     }
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
     const mountain = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: '#b9b8b1', map: rockMap, normalMap: maps.rockNormal, normalScale: new THREE.Vector2(.5,.5), vertexColors: true, roughness: 1 })); mountain.name = `Distant ridge ${ridge}`; scene.add(mountain);
