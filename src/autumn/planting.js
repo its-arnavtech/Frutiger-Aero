@@ -14,6 +14,6 @@ export function forestPlacements() {
     if (route.some(c => c.y < y + height + 3 && Math.hypot(c.x - px, c.z - pz) < height * .42 + 4)) continue;
     placements.push({ x: px, y, z: pz, height, species: Math.floor(random() * 3), variant: Math.abs(Math.round(px+pz))%2, color: palette[Math.floor(random() * palette.length)], turn: random() * TAU });
   }
-  placements.push({ x: island.x, y: terrainHeight(island.x, island.z), z: island.z, height: 44, species: 3, color: '#f2dab0', turn: .8 });
+  placements.push({ x: island.x, y: terrainHeight(island.x, island.z), z: island.z, height: 36, radius: 20, species: 3, color: '#f2dab0', turn: .8 });
   return placements;
 }

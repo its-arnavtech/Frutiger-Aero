@@ -32,3 +32,9 @@ Run `npm run test:mobile`. The `fault=asset` case blocks the autumn maple textur
 - A reserved GLSL identifier in the new ground shader was found during browser validation and corrected. Shader failures now log compiler details while retaining the plain recovery message in the interface.
 
 These checks used the desktop in-app Chromium browser. They do not establish iPhone 12 hardware performance or Safari compatibility on a physical device.
+
+## Final visual pass on 2026-10-17
+
+- All 46 tests and the production build pass after refining the maple canopy, island shoreline and mountain material.
+- Autumn reaches `ready` with no console errors. The Mirror lake view shows the updated maple, shoreline stones and sedges, distant ridges and live water reflections.
+- The larger maple's explicit canopy radius is included in camera-clearance tests and frustum bounds. Tree geometry remains unchanged throughout the camera path.

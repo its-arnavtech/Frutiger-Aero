@@ -16,8 +16,23 @@ export async function createForest(scene, renderer, signal, branchMap) {
     await yieldToBrowser(signal);
     const tree = new Tree(); tree.options.copy(structuredClone(TreePreset[kind === 1 ? 'Ash Medium' : kind === 2 ? 'Aspen Medium' : kind === 3 ? 'Oak Large' : 'Oak Medium']));
     tree.options.seed = 7193 + variant * 817;
-    tree.options.leaves.count = kind === 3 ? 48 : 10;
-    if (kind === 3) tree.options.leaves.size = 3.6;
+    tree.options.leaves.count = kind === 3 ? 24 : 10;
+    if (kind === 3) {
+      tree.options.leaves.size = 3;
+      tree.options.branch.length[0] = 24;
+      tree.options.branch.length[2] = 15;
+      tree.options.branch.length[3] = 10;
+      tree.options.branch.start[1] = .4;
+      tree.options.branch.children[0] = 12;
+      tree.options.branch.children[1] = 10;
+      tree.options.branch.children[2] = 6;
+      tree.options.branch.angle[1] = 65;
+      tree.options.branch.angle[2] = 55;
+      tree.options.branch.radius[1] = .55;
+      tree.options.branch.radius[2] = .45;
+      tree.options.branch.radius[3] = .35;
+      tree.options.branch.force.strength = .015;
+    }
     else tree.options.leaves.size *= 1.3;
     tree.options.leaves.tint = 0xffffff; tree.options.bark.tint = 0xffffff;
     Object.assign(tree.options.branch.sections, { 0: 8, 1: 5, 2: 3, 3: 2 });
@@ -30,7 +45,8 @@ export async function createForest(scene, renderer, signal, branchMap) {
     leaves.scale(1 / height, 1 / height, 1 / height); branches.scale(1 / height, 1 / height, 1 / height);
     let horizontal = 0;
     for (let i = 0; i < leaves.attributes.position.count; i++) horizontal = Math.max(horizontal, Math.hypot(leaves.attributes.position.getX(i), leaves.attributes.position.getZ(i)));
-    if(horizontal>.42){leaves.scale(.42/horizontal,1,.42/horizontal);branches.scale(.42/horizontal,1,.42/horizontal);}
+    const radiusRatio = kind === 3 ? 20 / 36 : .42;
+    if(horizontal>radiusRatio){leaves.scale(radiusRatio/horizontal,1,radiusRatio/horizontal);branches.scale(radiusRatio/horizontal,1,radiusRatio/horizontal);}
     shapeCrown(leaves, rng(1330 + kind));
     // The scan already contains shading between leaves. Avoid multiplying
     // that by the original summer crown's very deep baked occlusion.
@@ -71,7 +87,7 @@ export async function createForest(scene, renderer, signal, branchMap) {
     const stem = new THREE.InstancedMesh(branches, bark, selected.length);
     const entries = selected.map(p => {
       pose.position.set(p.x, p.y, p.z); pose.rotation.set(0, p.turn, 0); pose.scale.setScalar(p.height); pose.updateMatrix();
-      return { matrix: pose.matrix.clone(), color: new THREE.Color(p.color), bounds: new THREE.Sphere(new THREE.Vector3(p.x, p.y + p.height * .55, p.z), p.height * .7) };
+      return { matrix: pose.matrix.clone(), color: new THREE.Color(p.color), bounds: new THREE.Sphere(new THREE.Vector3(p.x, p.y + p.height * .5, p.z), Math.hypot(p.radius ?? p.height * .42, p.height * .5) + 2) };
     });
     entries.forEach((p, i) => { crown.setMatrixAt(i, p.matrix); stem.setMatrixAt(i, p.matrix); crown.setColorAt(i, p.color); });
     for (const mesh of [crown, stem]) { mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; root.add(mesh); }

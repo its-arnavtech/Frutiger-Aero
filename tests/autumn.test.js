@@ -44,7 +44,7 @@ test('the entire autumn forest remains clear of the flight, including the island
   for (const tree of trees) {
     assert.ok(terrainHeight(tree.x, tree.z) > 1.3, 'A tree is growing in the river');
     for (const c of flight) {
-      const horizontal = Math.max(0, Math.hypot(c.x - tree.x, c.z - tree.z) - tree.height * .42);
+      const horizontal = Math.max(0, Math.hypot(c.x - tree.x, c.z - tree.z) - (tree.radius ?? tree.height * .42));
       const vertical = Math.max(0, c.y - tree.y - tree.height);
       assert.ok(Math.hypot(horizontal, vertical) > 4, `Camera clips tree ${tree.x},${tree.z}`);
     }

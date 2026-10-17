@@ -45,6 +45,26 @@ export function timberMaterial(maps, color) {
   return new THREE.MeshStandardMaterial({ map: maps.timber, normalMap: maps.timberNormal, normalScale: new THREE.Vector2(.45, .45), roughnessMap: maps.timberRough, color, roughness: .85, envMapIntensity: .7 });
 }
 
+export function mountainStone(map) {
+  const material = new THREE.MeshStandardMaterial({ color: '#b9b8b1', map, vertexColors: true, roughness: 1 });
+  material.onBeforeCompile = shader => {
+    shader.vertexShader = `varying vec3 ridgePosition, ridgeNormal;\n${shader.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\nridgePosition=position; ridgeNormal=normal;');
+    shader.fragmentShader = `varying vec3 ridgePosition, ridgeNormal;\n${shader.fragmentShader}`
+      .replace('#include <map_fragment>', `
+        vec3 weight=pow(abs(normalize(ridgeNormal)),vec3(4.)); weight/=dot(weight,vec3(1.));
+        vec3 p=ridgePosition*.025;
+        vec4 sampledDiffuseColor=texture2D(map,p.yz)*weight.x+texture2D(map,p.xz)*weight.y+texture2D(map,p.xy)*weight.z;
+        diffuseColor*=sampledDiffuseColor;`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        float rockRelief=dot(sampledDiffuseColor.rgb,vec3(.333));
+        vec3 rx=dFdx(-vViewPosition), ry=dFdy(-vViewPosition), r1=cross(ry,normal), r2=cross(normal,rx);
+        float determinant=dot(rx,r1);
+        normal=normalize(abs(determinant)*normal-sign(determinant)*.12*(dFdx(rockRelief)*r1+dFdy(rockRelief)*r2));`);
+  };
+  material.customProgramCacheKey = () => 'autumn-triplanar-stone';
+  return material;
+}
+
 export function weatheredPlaster() {
   const material = new THREE.MeshStandardMaterial({ color: '#c5bfa8', roughness: .94 });
   material.onBeforeCompile = shader => {

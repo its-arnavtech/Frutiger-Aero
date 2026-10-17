@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { terrainHeight, riverX, riverWidth, rng, smooth, TAU } from './layout.js';
-import { forestFloor } from './materials.js';
+import { forestFloor, mountainStone } from './materials.js';
 
 export function buildTerrain(scene, maps) {
   const rockMap = maps.rock;
@@ -30,12 +30,12 @@ export function buildTerrain(scene, maps) {
       const peaks = 55 + 145 * Math.pow(1 - Math.abs(Math.sin(x * .006 + ridge * 2)), .65)
         + 40 * Math.abs(Math.sin(x * .023 + ridge)) + 23 * Math.abs(Math.sin(x * .061 + z * .013));
       const height = peaks * Math.pow(envelope, .8) + (random() - .5) * 12 * envelope;
-      p.setY(i, height - 10); p.setZ(i, z - 660 - ridge * 300);
-      ridgeUv.setXY(i, x * .016, (z + height) * .016);
+      p.setY(i, height - 10); p.setZ(i, z - 900 - ridge * 300);
+      ridgeUv.setXY(i, x * .009, z * .009);
       const c = base.clone().lerp(new THREE.Color('#c3beb2'), smooth(148, 215, height) * .18); col.push(c.r, c.g, c.b);
     }
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
-    const mountain = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: '#b9b8b1', map: rockMap, normalMap: maps.rockNormal, normalScale: new THREE.Vector2(.5,.5), vertexColors: true, roughness: 1 })); mountain.name = `Distant ridge ${ridge}`; scene.add(mountain);
+    const mountain = new THREE.Mesh(g, mountainStone(rockMap)); mountain.name = `Distant ridge ${ridge}`; scene.add(mountain);
   }
 
   const random = rng(5521), pose = new THREE.Object3D();
@@ -43,7 +43,7 @@ export function buildTerrain(scene, maps) {
   const sp = stoneGeometry.attributes.position;
   for (let i=0;i<sp.count;i++) { const x=sp.getX(i), y=sp.getY(i), z=sp.getZ(i), deform=1+.13*Math.sin(x*7.+z*4.)*Math.cos(y*5.); sp.setXYZ(i,x*deform,y*deform,z*deform); }
   stoneGeometry.computeVertexNormals();
-  const stones = new THREE.InstancedMesh(stoneGeometry, new THREE.MeshStandardMaterial({ color: '#a8a79b', map: rockMap, normalMap: maps.rockNormal, normalScale: new THREE.Vector2(.75,.75), roughness: .73 }), 620);
+  const stones = new THREE.InstancedMesh(stoneGeometry, new THREE.MeshStandardMaterial({ color: '#a8a79b', map: rockMap, normalMap: maps.rockNormal, normalScale: new THREE.Vector2(.75,.75), roughness: .73 }), 720);
   let count = 0;
   for (let i = 0; i < 620; i++) {
     const z = -290 + random() * 540, side = random() > .5 ? 1 : -1;
@@ -51,6 +51,12 @@ export function buildTerrain(scene, maps) {
     if (y < -1) continue;
     const scale = .4 + random() * 1.3;
     pose.position.set(x, y - .1, z); pose.rotation.set(random(), random() * TAU, random()); pose.scale.set(scale * 1.4, scale * .75, scale); pose.updateMatrix(); stones.setMatrixAt(count++, pose.matrix);
+  }
+  for (let i = 0; i < 90; i++) {
+    const a = random() * TAU, r = 12 + random() * 8, x = Math.cos(a) * r, z = -155 + Math.sin(a) * r, y = terrainHeight(x, z);
+    if (y < -1.5 || y > 1.8) continue;
+    const s = .4 + random() * 1.2;
+    pose.position.set(x, y - .18, z); pose.rotation.set(random(), a, random()); pose.scale.set(s * 1.3, s * .65, s); pose.updateMatrix(); stones.setMatrixAt(count++, pose.matrix);
   }
   stones.count = count; stones.receiveShadow = true; stones.castShadow = true; stones.computeBoundingSphere(); stones.name = 'River stones'; scene.add(stones);
   // Modeled clumps of dry grass soften the seam where the water meets the soil.
@@ -64,13 +70,18 @@ export function buildTerrain(scene, maps) {
     for (let v = 0; v < 6; v++) shades.push(...new THREE.Color(v === 5 ? '#d5be79' : '#8c8b4f').toArray());
   }
   const grassGeometry = new THREE.BufferGeometry(); grassGeometry.setAttribute('position', new THREE.Float32BufferAttribute(blades, 3)); grassGeometry.setAttribute('color', new THREE.Float32BufferAttribute(shades, 3)); grassGeometry.computeVertexNormals();
-  const grass = new THREE.InstancedMesh(grassGeometry, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 2400);
+  const grass = new THREE.InstancedMesh(grassGeometry, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 2800);
   count = 0;
   for (let i = 0; i < 2400; i++) {
     const z = -260 + random() * 500, side = random() > .5 ? 1 : -1;
     const x = riverX(z) + side * (riverWidth(z) + 1 + random() * 7), y = terrainHeight(x, z);
     if (y < -.1) continue;
     pose.position.set(x, y, z); pose.rotation.set(0, random() * TAU, 0); pose.scale.setScalar(.6 + random() * .8); pose.updateMatrix(); grass.setMatrixAt(count++, pose.matrix);
+  }
+  for (let i = 0; i < 400; i++) {
+    const a = random() * TAU, r = 5 + random() * 13, x = Math.cos(a) * r, z = -155 + Math.sin(a) * r, y = terrainHeight(x, z);
+    if (y < .15) continue;
+    pose.position.set(x, y, z); pose.rotation.set(0, a, 0); pose.scale.setScalar(.5 + random() * .8); pose.updateMatrix(); grass.setMatrixAt(count++, pose.matrix);
   }
   grass.count = count; grass.layers.set(1); grass.receiveShadow = true; grass.computeBoundingSphere(); grass.name = 'Autumn sedges'; scene.add(grass);
   return terrain;

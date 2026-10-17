@@ -11,8 +11,9 @@ export function terrainHeight(x, z) {
   const shore = -2.8 + 5.4 * smooth(-2, 8, distance);
   const hills = smooth(12, 115, distance) * (18 + 13 * Math.sin(x * .018 + z * .007) ** 2 + 22 * Math.sin(z * .011 - x * .009) ** 2);
   const detail = smooth(3, 18, distance) * (1.1 * Math.sin(x * .18) * Math.sin(z * .14) + 2 * Math.sin(x * .051 + z * .037));
-  const r = Math.hypot(x - island.x, z - island.z);
-  const isle = r < island.radius ? -1 + 5.5 * Math.pow(1 - (r / island.radius) ** 2, .7) : -3;
+  const r = Math.hypot(x - island.x, z - island.z), angle = Math.atan2(z - island.z, x - island.x);
+  const radius = island.radius * (1 + .11 * Math.sin(angle * 3 + .8) + .07 * Math.cos(angle * 5));
+  const isle = r < radius ? -1 + 5.5 * Math.pow(1 - (r / radius) ** 2, 1.15) : -3;
   return Math.max(shore + hills + detail, isle);
 }
 export const cabins = [
