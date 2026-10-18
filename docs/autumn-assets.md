@@ -31,6 +31,17 @@ These Poly Haven materials are CC0, downloaded at 1K with diffuse, OpenGL normal
 
 ## Reused photographic sources
 
-The CC0 Poly Haven sky photograph is warmed in the sky shader and its HDR companion lights surface reflections. Coast Sand supplies the riverbed; Marble Cliff supplies stone detail. Three.js's water normal texture animates the river surface. EZ Tree supplies branching geometry and photographed bark textures. Autumn's foliage uses the generated branch above; original-world foliage remains unchanged.
+The CC0 Poly Haven sky photograph is warmed in the sky shader and its HDR companion lights surface reflections. Coast Sand supplies the riverbed; Marble Cliff supplies stone detail. Three.js's water normal texture animates the river surface. Autumn now uses connected, procedurally modeled roots, trunks, forks and twigs in `tree-geometry.js`, with the existing Metasequoia Bark scan and Grass Ground scan. Original-world foliage remains unchanged.
 
 Source links and licenses are retained in [assets.md](assets.md). The landscape, village, bridge, waterwheel, mountain ridges, river, sedges and camera path are modeled procedurally in `src/autumn/`.
+
+## Golden maple spray — October 18 realism pass
+
+- Service: built-in imagegen service, using the imagegen skill.
+- Runtime file: `public/assets/autumn/golden-maple-spray.png`.
+- Original output: `C:/Users/Arnav/.codex/generated_images/01a11eb4-b42d-7f51-9146-008ceda3fdef/exec-d0c3274d-8f6a-45d4-87e4-ed09c88ab37f.png`.
+- Original transparent output copied without edits. Replaces the dense brown branch texture on live tree geometry; transparent gaps, coverage-preserving mipmaps and full camera geometry remain throughout the route.
+
+Final generation prompt:
+
+> Use case: photorealistic-natural. Asset type: alpha-cutout leaf spray texture for a physically lit real-time 3D autumn maple tree. A fine natural branching twig carrying 12 to 16 separate freshly yellow autumn maple leaves. Broad anatomically correct five-lobed maple leaves, fine serrated edges, sharp branching veins, delicate thin stems, small natural curl, fresh luminous golden yellow and lemon yellow with a few yellow-green leaves and just one subtle amber leaf. The leaves form a sparse irregular fan from a twig entering the bottom center, each leaf clearly discernible, generous transparent gaps between leaves; about half of the square remains transparent. Use a straight-on orthographic botanical photograph, extremely crisp focus, neutral diffuse daylight, no baked shadows or directional sunlight. Genuine photographic leaf surface detail, natural minor imperfections. Entire spray inside the square with small clear margins. True transparent background including all gaps. No background, no white matte, no ground, no glow, no blurred leaves, no browned dead foliage, no orange clump, no text, no watermark. Square image.

@@ -7,7 +7,7 @@ export function buildTerrain(scene, maps) {
   const geometry = new THREE.PlaneGeometry(820, 1000, 340, 410);
   geometry.rotateX(-Math.PI / 2); geometry.translate(0, 0, -80);
   const positions = geometry.attributes.position, colors = [], uv = geometry.attributes.uv;
-  const soil = new THREE.Color('#d9d3c4'), moss = new THREE.Color('#b1b59f'), copper = new THREE.Color('#e5d9c1'), rock = new THREE.Color('#a7a69b'), color = new THREE.Color();
+  const soil = new THREE.Color('#e3ddc5'), moss = new THREE.Color('#c2cf9d'), copper = new THREE.Color('#e9d8b2'), rock = new THREE.Color('#a7a69b'), color = new THREE.Color();
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i), z = positions.getZ(i), y = terrainHeight(x, z);
     positions.setY(i, y); uv.setXY(i, x * .34, z * .34);
@@ -67,7 +67,7 @@ export function buildTerrain(scene, maps) {
     const base = [-dz * w, 0, dx * w], edge = [dz * w, 0, -dx * w];
     const mid = [dx * bend * .4, h * .65, dz * bend * .4], tip = [dx * bend, h, dz * bend];
     blades.push(...base, ...edge, ...mid, ...base, ...mid, ...tip);
-    for (let v = 0; v < 6; v++) shades.push(...new THREE.Color(v === 5 ? '#d5be79' : '#8c8b4f').toArray());
+    for (let v = 0; v < 6; v++) shades.push(...new THREE.Color(v === 5 ? '#b5bc63' : '#5f7d36').toArray());
   }
   const grassGeometry = new THREE.BufferGeometry(); grassGeometry.setAttribute('position', new THREE.Float32BufferAttribute(blades, 3)); grassGeometry.setAttribute('color', new THREE.Float32BufferAttribute(shades, 3)); grassGeometry.computeVertexNormals();
   const grass = new THREE.InstancedMesh(grassGeometry, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 2800);

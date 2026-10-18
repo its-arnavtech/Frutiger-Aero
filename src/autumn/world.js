@@ -53,19 +53,21 @@ export async function createWorld(canvas, { signal, onStage }) {
     load('/assets/autumn/maple-leaf.png'),
     load('/assets/environment/kloofendal_48d_partly_cloudy_puresky_4k.jpg'),
     profile.floatTargets ? load('/assets/environment/kloofendal_48d_partly_cloudy_puresky_2k.hdr',new HDRLoader()) : null,
-    load('/assets/autumn/maple-branch.png'),
+    load('/assets/autumn/golden-maple-spray.png'),
   ]), { signal, timeoutMs: 30000, label: 'Loading autumn textures' });
   for (const texture of [leafMap, photograph,branchMap]) texture.colorSpace = THREE.SRGBColorSpace;
   waterNormals.wrapS = waterNormals.wrapT = THREE.RepeatWrapping;
-  const sunDirection = new THREE.Vector3(-.65, .62, .28).normalize();
+  const sunDirection = new THREE.Vector3(-.58, .48, -.62).normalize();
   createAutumnSky(scene, sunDirection, photograph);
   if (hdr) {
     const pmrem = new THREE.PMREMGenerator(renderer); environment = pmrem.fromEquirectangular(hdr);
     scene.environment = environment.texture; scene.environmentIntensity = .65;
     scene.environmentRotation.y = .597-Math.atan2(sunDirection.z,sunDirection.x); pmrem.dispose();hdr.dispose();
   }
-  scene.add(new THREE.HemisphereLight('#dce8ee', '#8d8c74', .75));
-  const sun = new THREE.DirectionalLight('#fff1d9', 3.25); sun.target.position.set(0, 0, -55); sun.position.copy(sun.target.position).addScaledVector(sunDirection, 350);
+  scene.add(new THREE.HemisphereLight('#dce8ee', '#8c9b56', 1.1));
+  const bounce = new THREE.DirectionalLight('#ffe8c7', .85);
+  bounce.position.set(100, 90, 200); scene.add(bounce);
+  const sun = new THREE.DirectionalLight('#fff0cf', 3.4); sun.target.position.set(0, 0, -55); sun.position.copy(sun.target.position).addScaledVector(sunDirection, 350);
   sun.castShadow = true; sun.shadow.mapSize.set(profile.shadowSize, profile.shadowSize);
   Object.assign(sun.shadow.camera, { left: -180, right: 180, top: 230, bottom: -210, near: 20, far: 850 });
   sun.shadow.camera.updateProjectionMatrix(); sun.shadow.normalBias = .15; sun.shadow.bias = -.0002; scene.add(sun, sun.target);
@@ -75,7 +77,7 @@ export async function createWorld(canvas, { signal, onStage }) {
   buildTerrain(scene, maps);
   const village = buildVillage(scene, maps);
   await onStage('Turning the forest to gold');
-  const forest = await createForest(scene, renderer, signal,branchMap);
+  const forest = await createForest(scene, renderer, signal, branchMap, maps);
   const leaves = createLeaves(scene, leafMap);
   await onStage('Lighting the lanterns');
   const water = createRiver(scene,{waterNormals,groundMap:maps.soil,sunDirection,profile,forest,signal});
@@ -91,7 +93,7 @@ export async function createWorld(canvas, { signal, onStage }) {
   const birdGeometry = new THREE.BufferGeometry(); birdGeometry.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0, -1.3,.2,.25, -.5,0,.45, 0,0,0, .5,0,.45, 1.3,.2,.25], 3)); birdGeometry.computeVertexNormals();
   const birds = new THREE.InstancedMesh(birdGeometry, new THREE.MeshBasicMaterial({ color: '#514a40', side: THREE.DoubleSide }), 14); birds.frustumCulled = false; scene.add(birds);
   cinema = createCinema(renderer, scene, camera, { scale: profile.initialRatio / profile.canvasRatio, occlusion: profile.occlusion, bloom: profile.bloom, floatTargets: profile.floatTargets });
-  cinema.grade.exposure.value = 1.04; cinema.grade.saturation.value = .94; cinema.grade.contrast.value = .08; cinema.quality.glow = .025;
+  cinema.grade.exposure.value = 1.08; cinema.grade.saturation.value = 1.03; cinema.grade.contrast.value = .10; cinema.quality.glow = .035;
   let pixelRatio = profile.initialRatio;
   const target = new THREE.Vector3();
   function aim(progress, pointer) {
