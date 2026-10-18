@@ -21,3 +21,12 @@ Every world requests WebGL's high-performance adapter. The operating system and 
 On the development machine, Chrome was configured for the power-saving GPU. The Windows per-app preference for Chrome, Edge, Edge WebView and Codex was changed to high performance. Previous values were saved in the ignored `artifacts/gpu-preferences-before-monsoon.json`. The running Codex browser still reported Intel graphics immediately afterward: an app restart is required to apply the preference to its existing GPU process. CPU tasks and remote image generation cannot be transferred to the laptop GPU through a WebGL setting.
 
 Desktop phone-size checks are not physical iPhone 12 / Safari measurements.
+
+## Checked on 2026-10-17
+
+- All 50 automated tests pass and the production build succeeds. A sharp look-target turn near the snowline was caught by the route test and corrected.
+- The live desktop scene reaches `ready` without shader or console errors. Opening shore, close waterfall and high lake views were inspected. The camera passes through the same continuous terrain, with no people or human silhouettes.
+- The actual production bundle reaches `ready` at 390 × 844 with the mobile budget and simulated 3× display density. Rotation to 844 × 390 preserves the renderer; seeking the snowline reaches the expected camera position.
+- The three-world picker fits the portrait viewport. Original, Autumn and Monsoon links preserve `quality=mobile`; Winter and Spring are unavailable. Escape closes the picker.
+- A deliberately failed rock request exits loading with retry, lighter-rendering and world-selection controls. Selecting the clean Monsoon link removes the fault and returns to `ready`.
+- Windows high-performance preferences were read back successfully. The current browser context still reports Intel, so RTX activation requires restarting the relevant app.
