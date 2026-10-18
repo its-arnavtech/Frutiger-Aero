@@ -12,7 +12,10 @@ export async function loadAutumnMaterials(load) {
     soilNormal: ['/assets/materials/coast_sand_01_nor_gl_1k.jpg'],
     rock: ['/assets/materials/marble_cliff_02_diff_1k.jpg', true],
     rockNormal: ['/assets/materials/marble_cliff_02_nor_gl_1k.jpg'],
-    grass: ['/assets/materials/leafy_grass_diff_1k.jpg', true],
+    grass: ['/assets/materials/grass_ground_diff_1k.jpg', true],
+    grassNormal: ['/assets/materials/grass_ground_nor_gl_1k.jpg'],
+    bark: ['/assets/materials/metasequoia_bark_diff_1k.jpg', true],
+    barkNormal: ['/assets/materials/metasequoia_bark_nor_gl_1k.jpg'],
   };
   return Object.fromEntries(await Promise.all(Object.entries(sources).map(async ([name, [path, color]]) => {
     const texture = await load(path); texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
@@ -22,7 +25,7 @@ export async function loadAutumnMaterials(load) {
 }
 
 export function forestFloor(maps) {
-  const material = new THREE.MeshStandardMaterial({ map: maps.leafGround, normalMap: maps.leafNormal, normalScale: new THREE.Vector2(.8, .8), roughnessMap: maps.leafRough, roughness: .93, vertexColors: true, envMapIntensity: .85 });
+  const material = new THREE.MeshStandardMaterial({ map: maps.leafGround, normalMap: maps.grassNormal, normalScale: new THREE.Vector2(.7, .7), roughnessMap: maps.leafRough, roughness: .93, vertexColors: true, envMapIntensity: .85 });
   material.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, { soilMap: { value: maps.soil }, grassMap: { value: maps.grass } });
     shader.vertexShader = `varying vec3 vGround;\n${shader.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\nvGround=position;');
@@ -31,8 +34,8 @@ export function forestFloor(maps) {
         float wet=1.-smoothstep(.1,2.4,vGround.y);
         float mossCoverage=smoothstep(.18,.7,sin(vGround.x*.041+sin(vGround.z*.026)*2.)*sin(vGround.z*.057));
         vec3 soil=texture2D(soilMap,vGround.xz*.32).rgb;
-        vec3 moss=texture2D(grassMap,vGround.xz*.44).rgb*vec3(.88,.93,.75);
-        diffuseColor.rgb=mix(diffuseColor.rgb,moss,mossCoverage*.42);
+        vec3 moss=texture2D(grassMap,vGround.xz*.18).rgb*vec3(.72,1.18,.48);
+        diffuseColor.rgb=mix(diffuseColor.rgb,moss,.72+mossCoverage*.21);
         diffuseColor.rgb=mix(diffuseColor.rgb,soil*vec3(.46,.43,.38),wet*.85);
         diffuseColor.rgb*=.84+.16*sin(vGround.z*.025+vGround.x*.019);`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor=mix(.32,roughnessFactor,smoothstep(.1,2.3,vGround.y));');
