@@ -27,7 +27,7 @@ npm run dev
 
 Three.js renders the complete scene. The shared [landscape plan](src/autumn/layout.js) defines the winding river, lake, island, village and terrain. A constant-speed [camera spline](src/autumn/journey.js) physically moves through this geography; its targets turn toward the landmarks as the flight progresses.
 
-The forest contains over a thousand branching trees, with seven shapes and varied ochre, copper and olive foliage. An imagegen botanical branch texture supplies individual leaf veins, spots and cutout edges; physically based shading supplies skylight, transmitted sunlight and wind. Every tree keeps its complete geometry in the camera view at every distance. Only the lower-resolution water reflection uses simpler crowns.
+The forest contains over a thousand branching trees, with seven shapes, flared roots, low forks and spreading golden crowns. A new imagegen maple spray supplies distinct yellow and yellow-green leaves, veins and cutout edges; physically based shading supplies skylight, transmitted sunlight and wind. Scanned bark, greener meadow ground and fallen leaves complete the forest. Every tree keeps its complete geometry in the camera view at every distance. Only the lower-resolution water reflection uses simpler crowns.
 
 The village has pitched roofs, timber frames, glowing lattice windows, verandas, riverside boardwalks, paper lanterns and a rotating mill wheel. The river reflects the actual world. Drifting paper lanterns, windblown maple leaves, swallows and moving water keep the scene alive while the camera rests. Dry sedges, fallen leaves and river stones soften the shore; successive mountain ridges recede into haze.
 
@@ -35,9 +35,9 @@ The sky and HDR environment use photographic source assets. Scanned leaf litter 
 
 ## Monsoon / Rainmere
 
-A rainy alpine cirque surrounds a clear glacial lake, inspired by the supplied mountain photograph. Travel over submerged pebbles, beside rain-darkened slate walls and snowmelt waterfalls, along lingering snow shelves, and above the same lake before returning to the shore. No people, characters, buildings or human silhouettes are present.
+A vast clear lake faces one dramatic mountain beyond its far shore. Low green hills leave both sides open, and a photographic blue sky carries bright cumulus clouds. Travel over submerged pebbles, across the lake toward snowmelt cascades, and along the green shore before returning home. The mountain remains ahead throughout the continuous loop. No people, characters, buildings or human silhouettes are present.
 
-The terrain, lake-depth chart and flight tests share the same geography. Photographic generated rock textures cover physical cliff geometry. Snow accumulates by slope, elevation and irregular coverage; rain falls in a bounded volume around the camera, circles spread across the water, and mist drifts beside the walls. The transparent water reveals actual submerged stones while reflecting the scene. The optional sound is a soft synthesized rainfall. See [assets and generation prompts](docs/monsoon-assets.md) and [validation cases](docs/monsoon-testing.md).
+The terrain, lake-depth chart and flight tests share the same geography. Generated rock textures cover the modeled ridges and gullies. Snow accumulates near the summit by slope and elevation; light rain falls around the camera, circles spread across the water, and mist drifts around the mountain. Cached terrain shadows and a photographic HDR environment supply directional and reflected light. The transparent water reveals actual submerged stones while reflecting the scene. The optional sound is a soft synthesized rainfall. See [assets and generation prompts](docs/monsoon-assets.md) and [validation cases](docs/monsoon-testing.md).
 
 ## Adding worlds
 

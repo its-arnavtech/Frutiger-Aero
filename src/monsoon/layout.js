@@ -8,26 +8,40 @@ export function noise(x, z) {
   const a = hash(ix, iz), b = hash(ix + 1, iz), c = hash(ix, iz + 1), d = hash(ix + 1, iz + 1);
   return (a + (b - a) * u) * (1 - v) + (c + (d - c) * u) * v;
 }
+export const terrainBounds = { width: 2400, depth: 2600, centerZ: -400 };
+export const lake = { x: 0, z: -80, radiusX: 285, radiusZ: 405, depth: 24 };
 export function basinRadius(x, z) {
-  const angle = Math.atan2((z + 45) / 240, x / 175);
-  return Math.hypot(x / 175, (z + 45) / 240) / (1 + .055 * Math.sin(angle * 5 + .4) + .025 * Math.sin(angle * 11));
+  const angle = Math.atan2((z - lake.z) / lake.radiusZ, x / lake.radiusX);
+  return Math.hypot(x / lake.radiusX, (z - lake.z) / lake.radiusZ) / (1 + .035 * Math.sin(angle * 5 + .4) + .018 * Math.sin(angle * 11));
 }
-// One continuous height field drives the mesh, water depth and flight checks.
+// A single massif beyond the far shore. Its compact footprint cannot grow
+// into enclosing walls along the sides of the lake.
+export function mountainHeight(x, z) {
+  const peak = (cx, cz, width, depth, height) => {
+    const dx = (x - cx) / width, dz = (z - cz) / depth, r = Math.hypot(dx, dz), a = Math.atan2(dz, dx);
+    const envelope = Math.max(0, 1 - r);
+    const spur = 1 - .18 * Math.abs(Math.sin(a * 5 + noise(x * .008, z * .008) * 2)) * smooth(0, .35, r);
+    return envelope ** 1.13 * height * spur;
+  };
+  const mass = Math.max(
+    peak(-24, -890, 600, 440, 690),
+    peak(-215, -854, 330, 380, 440),
+    peak(-117, -938, 380, 410, 520),
+    peak(164, -934, 350, 420, 495),
+    peak(304, -995, 310, 410, 385),
+  );
+  const erosion = (noise(x * .014, z * .014) - .5) * 110 + (noise(x * .043, z * .043) - .5) * 42 + (noise(x * .12, z * .12) - .5) * 10;
+  return Math.max(0, mass + erosion * smooth(0, 110, mass));
+}
+// The same continuous surface drives the mesh, lake depth and camera checks.
 export function terrainHeight(x, z) {
-  const r = basinRadius(x, z), a = Math.atan2(z + 45, x);
-  const bed = .8 - 13 * (1 - smooth(.38, 1.02, r));
-  const height = 145 + 52 * Math.sin(a * 3 + 1) ** 2 + 36 * noise(x * .014, z * .014);
-  const mouth = 1 - .75 * smooth(.65, .98, Math.sin(a));
-  const ribs = Math.sin(a * 19 + .3) * .019 + Math.sin(a * 37) * .009;
-  const wall = smooth(1.055, 1.48, r + ribs * smooth(1.04, 1.2, r)) * height * mouth;
-  const ledges = wall + 6 * (smooth(25, 37, wall) - smooth(48, 73, wall)) + 8 * (smooth(93, 108, wall) - smooth(120, 150, wall));
-  const shelves = Math.sin(r * 43 + noise(x * .008, z * .008)) * 3.5 * smooth(1.05, 1.2, r);
-  const buttress = (noise(x * .045, z * .045) - .5) * 26 + (noise(x * .13, z * .13) - .5) * 7;
-  const detail = (noise(x * .5, z * .5) - .5) * 1.3;
-  return bed + ledges + shelves + buttress * smooth(1.04, 1.3, r) + detail * smooth(.8, 1.05, r);
+  const r = basinRadius(x, z), shore = smooth(.99, 1.22, r);
+  const bed = .55 - lake.depth * (1 - smooth(.48, 1.015, r));
+  const foothills = (9 + noise(x * .007, z * .007) * 31 + noise(x * .023, z * .023) * 6) * shore;
+  const detail = (noise(x * .16, z * .16) - .5) * 2.2 * smooth(.92, 1.17, r);
+  return bed + foothills + mountainHeight(x, z) + detail;
 }
-export const waterfalls = [
-  { x: -104, z: -276, height: 95, width: 2.8, bend: 9 },
-  { x: 132, z: -230, height: 72, width: 1.3, bend: -5 },
-  { x: -176, z: -139, height: 48, width: 1, bend: 3 },
+export const streams = [
+  { from: [-95, -700], to: [-78, -465], width: 2.7 },
+  { from: [130, -780], to: [112, -464], width: 1.5 },
 ];

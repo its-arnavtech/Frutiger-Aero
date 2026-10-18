@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { cameraAt, lookAt, rollAt } from './journey.js';
-import { buildLandscape, createOvercastSky } from './landscape.js';
+import { buildLandscape, createCloudbreakSky } from './landscape.js';
+import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { loadMaterials } from './materials.js';
 import { createLake } from './water.js';
 import { createWeather } from './weather.js';
@@ -23,8 +24,9 @@ export async function createWorld(canvas, { signal, onStage }) {
   const gl = renderer.getContext(), debug = gl.getExtension('WEBGL_debug_renderer_info');
   if (debug) canvas.dataset.gpu = gl.getParameter(debug.UNMASKED_RENDERER_WEBGL);
   renderer.setPixelRatio(profile.canvasRatio); renderer.setSize(innerWidth, innerHeight); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.info.autoReset = false;
-  const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2('#a3b8ba', .00125);
-  const camera = new THREE.PerspectiveCamera(59, innerWidth / innerHeight, .15, 2400); camera.layers.enable(1);
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
+  const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2('#b5d2df', .00029);
+  const camera = new THREE.PerspectiveCamera(59, innerWidth / innerHeight, .15, 4400); camera.layers.enable(1);
   const resources = new Set(); let cinema, environment;
   signal.addEventListener('abort', () => {
     scene.traverse(object => {
@@ -35,31 +37,38 @@ export async function createWorld(canvas, { signal, onStage }) {
     cinema?.dispose(); environment?.dispose(); for (const resource of resources) resource.dispose(); renderer.dispose();
   }, { once: true });
   const loader = new THREE.TextureLoader();
-  const load = url => loader.loadAsync(url).then(texture => {
+  const load = (url, source = loader) => source.loadAsync(url).then(texture => {
     if (signal.aborted) { texture.dispose(); throw signal.reason; }
     resources.add(texture); texture.anisotropy = renderer.capabilities.getMaxAnisotropy(); return texture;
   });
   await onStage('Rain on stone');
-  const maps = await waitFor(loadMaterials(load), { signal, timeoutMs: 30000, label: 'Loading mountain materials' });
-  const sky = createOvercastSky(scene);
-  if (profile.floatTargets) {
-    const pmrem = new THREE.PMREMGenerator(renderer); environment = pmrem.fromScene(scene, .08, .1, 2400);
-    scene.environment = environment.texture; scene.environmentIntensity = .65; pmrem.dispose();
+  const [maps, hdr] = await waitFor(Promise.all([loadMaterials(load), profile.floatTargets ? load('/assets/environment/kloofendal_48d_partly_cloudy_puresky_2k.hdr', new HDRLoader()) : null]), { signal, timeoutMs: 30000, label: 'Loading mountain materials' });
+  const sunDirection = new THREE.Vector3(-.65, .7, .28).normalize();
+  const sky = createCloudbreakSky(scene, maps.sky, sunDirection);
+  if (hdr) {
+    const pmrem = new THREE.PMREMGenerator(renderer); environment = pmrem.fromEquirectangular(hdr);
+    scene.environment = environment.texture; scene.environmentIntensity = .65;
+    scene.environmentRotation.y = .597 - Math.atan2(sunDirection.z, sunDirection.x); pmrem.dispose(); hdr.dispose();
   }
-  scene.add(new THREE.HemisphereLight('#e5eff1', '#7d847c', 2.65));
-  const light = new THREE.DirectionalLight('#edf1ed', 1.35); light.position.set(-150, 300, 30); scene.add(light);
+  scene.add(new THREE.HemisphereLight('#d7e9f4', '#707e58', 1.15));
+  const light = new THREE.DirectionalLight('#fff5de', 3.1); light.target.position.set(0, 180, -650);
+  light.position.copy(light.target.position).addScaledVector(sunDirection, 1400);
+  light.castShadow = true; light.shadow.mapSize.set(profile.shadowSize, profile.shadowSize);
+  Object.assign(light.shadow.camera, { left: -850, right: 850, top: 950, bottom: -850, near: 50, far: 2800 });
+  light.shadow.camera.updateProjectionMatrix(); light.shadow.normalBias = 1.5; light.shadow.bias = -.00012;
+  scene.add(light, light.target); signal.addEventListener('abort', () => light.shadow.dispose(), { once: true });
   await onStage('Carving a place for the water');
-  const landscape = buildLandscape(scene, maps);
+  const landscape = buildLandscape(scene, maps, profile);
   const lake = createLake(scene, maps, profile, signal), weather = createWeather(scene, profile);
   cinema = createCinema(renderer, scene, camera, { scale: profile.initialRatio / profile.canvasRatio, occlusion: profile.occlusion, bloom: profile.bloom, floatTargets: profile.floatTargets });
-  cinema.grade.exposure.value = 1.12; cinema.grade.saturation.value = .88; cinema.grade.contrast.value = .08; cinema.quality.glow = .018;
+  cinema.grade.exposure.value = 1.04; cinema.grade.saturation.value = 1.04; cinema.grade.contrast.value = .12; cinema.quality.glow = .022;
   let pixelRatio = profile.initialRatio;
   function aim(progress, pointer) {
     camera.position.copy(cameraAt(progress)); camera.up.set(0, 1, 0); camera.lookAt(lookAt(progress)); camera.rotateZ(rollAt(progress)); camera.rotateY(-pointer.x * .018); camera.rotateX(pointer.y * .01);
   }
   aim(0, { x: 0, y: 0 }); weather.update(0, camera);
   await onStage('Watching the clouds gather');
-  await compileWorld(renderer, scene, camera, { signal, timeoutMs: 20000 }); cinema.render();
+  await compileWorld(renderer, scene, camera, { signal, timeoutMs: 20000 }); renderer.shadowMap.needsUpdate = true; cinema.render();
   if (gl.isContextLost()) throw new Error('The graphics connection was interrupted.');
   await onStage('A world held in rain');
   let time = 0, frames = 0, sampled = performance.now(), slow = 0;

@@ -8,7 +8,7 @@ export const themes = [
   { id: 'winter', name: 'Winter', available: false },
   { id: 'spring', name: 'Spring', available: false },
   { id: 'monsoon', name: 'Monsoon', subtitle: 'A world held in rain', title: 'Rainmere — a world held in rain', color: '#698b91', loading: 'Listening to the rain', available: true,
-    description: 'An uninhabited alpine lake beneath rain-darkened cliffs. Scroll over clear water, snow shelves, waterfalls and drifting mountain mist.' },
+    description: 'A vast, uninhabited alpine lake facing a solitary mountain. Scroll over clear water, past low green hills and waterfalls, beneath a blue sky of towering clouds.' },
 ];
 
 export function resolveTheme(search = '') {

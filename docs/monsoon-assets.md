@@ -1,6 +1,6 @@
 # Monsoon / Rainmere assets
 
-The user's photograph guides the alpine cirque, snow shelves, clear stony water and overcast palette. The photograph is not shipped or used as a background. The world contains no people, characters or human silhouettes. All cliffs, lake, stones, cascades and precipitation belong to the live 3D scene.
+The user's photograph originally guided the alpine stone, snow and clear water. The October 18 revision opens this geography into a broad lake with one mountain ahead, low green side hills and a blue, cloud-filled sky. The reference photograph is not shipped or used as a background. The world contains no people, characters or human silhouettes. The mountain, hills, lake, stones, cascades and precipitation belong to the live 3D scene.
 
 ## Generated rock
 
@@ -22,6 +22,6 @@ The user's photograph guides the alpine cirque, snow shelves, clear stony water 
 
 ## Reused assets
 
-The marble cliff normal map is a CC0 Poly Haven scan already included in the project. The water normal texture is distributed with Three.js under its included license. See `docs/assets.md` and `public/assets/materials/THREE-LICENSE.txt`.
+The Marble Cliff normal map, Grass Ground scan and Kloofendal 48d Partly Cloudy PureSky photograph/HDR are CC0 Poly Haven assets already included in the project. The full panoramic sky rotates very slowly on a camera-centered sphere; its HDR companion lights materials. The water normal texture is distributed with Three.js under its included license. See `docs/assets.md` and `public/assets/materials/THREE-LICENSE.txt`.
 
-The storm sky, moving rain, rain rings, snow coverage, waterfalls and mist use procedural geometry and shaders. Optional rain sound is synthesized locally. No external API calls occur at runtime.
+Mountain ridges, moving rain, rain rings, snow coverage, waterfalls and mist use procedural geometry and shaders. Optional rain sound is synthesized locally. No external API calls occur at runtime.
