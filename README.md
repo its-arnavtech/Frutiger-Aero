@@ -1,8 +1,8 @@
 # Aerō worlds
 
-Choose a living 3D world and explore it in one continuous, scroll-controlled flight. The original Frutiger Aero city remains the default. Open the world button at the top right to switch to **Autumn / Amberfall**, an independent river valley. This work lives on `codex/autumn-world`; `main` is unchanged.
+Choose a living 3D world and explore it in one continuous, scroll-controlled flight. The original Frutiger Aero city remains the default. Open the world button at the top right to switch to **Autumn / Amberfall**, an independent river valley, or **Monsoon / Rainmere**, an uninhabited alpine lake. Monsoon is developed on `codex/monsoon-world`, based on the completed multi-world autumn branch.
 
-Direct links are `/?world=original` and `/?world=autumn`. Winter, Spring and Monsoon appear as **Coming later**, ready for future theme branches. Only the selected world's scene module is loaded. Switching navigates to its own URL and releases the old page's graphics context.
+Direct links are `/?world=original`, `/?world=autumn` and `/?world=monsoon`. Winter and Spring appear as **Coming later**, ready for future theme branches. Only the selected world's scene module is loaded. Switching navigates to its own URL and releases the old page's graphics context.
 
 Drift under a lantern-strung timber bridge, pass the glowing windows and waterwheel of a riverside village, follow the river into a mountain lake, circle an ancient maple, visit a hillside sanctuary, and rise above a copper-and-gold forest before returning home. The journey is a little over a kilometre long. Everything along the route belongs to the same 3D scene.
 
@@ -32,6 +32,12 @@ The forest contains over a thousand branching trees, with seven shapes and varie
 The village has pitched roofs, timber frames, glowing lattice windows, verandas, riverside boardwalks, paper lanterns and a rotating mill wheel. The river reflects the actual world. Drifting paper lanterns, windblown maple leaves, swallows and moving water keep the scene alive while the camera rests. Dry sedges, fallen leaves and river stones soften the shore; successive mountain ridges recede into haze.
 
 The sky and HDR environment use photographic source assets. Scanned leaf litter and weathered timber include normal and roughness maps. Wet banks blend into a gravel riverbed; depth-dependent water colour, fine ripples and Fresnel reflections make the shallows visible. Imagegen supplied the branch and individual falling-leaf textures, applied to live 3D geometry. See the [autumn asset record and generation prompts](docs/autumn-assets.md) and [source licenses](docs/assets.md).
+
+## Monsoon / Rainmere
+
+A rainy alpine cirque surrounds a clear glacial lake, inspired by the supplied mountain photograph. Travel over submerged pebbles, beside rain-darkened slate walls and snowmelt waterfalls, along lingering snow shelves, and above the same lake before returning to the shore. No people, characters, buildings or human silhouettes are present.
+
+The terrain, lake-depth chart and flight tests share the same geography. Photographic generated rock textures cover physical cliff geometry. Snow accumulates by slope, elevation and irregular coverage; rain falls in a bounded volume around the camera, circles spread across the water, and mist drifts beside the walls. The transparent water reveals actual submerged stones while reflecting the scene. The optional sound is a soft synthesized rainfall. See [assets and generation prompts](docs/monsoon-assets.md) and [validation cases](docs/monsoon-testing.md).
 
 ## Adding worlds
 

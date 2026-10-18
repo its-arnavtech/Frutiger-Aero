@@ -9,7 +9,7 @@ const scrubber=$('#scrubber'),playButton=$('#play'),soundButton=$('#sound');
 let progress=0,target=0,playing=false,last=performance.now(),world,atmosphere,frameId;
 let pointer={x:0,y:0},pointerTarget={x:0,y:0};
 let running=false,reportError=console.error;
-const ambience=createAmbience(),FLIGHT_SECONDS=170;
+const ambience=createAmbience({rain:resolveTheme(location.search).id==='monsoon'}),FLIGHT_SECONDS=170;
 const scrollRange=()=>Math.max(1,document.documentElement.scrollHeight-innerHeight);
 function seek(value){target=clamp(value);window.scrollTo({top:target*scrollRange(),behavior:'instant'});}
 function setPlaying(value){playing=value;playButton.setAttribute('aria-pressed',String(value));playButton.setAttribute('aria-label',value?'Pause journey':'Play journey');}

@@ -14,7 +14,7 @@ http.createServer(async (request, response) => {
   const fault = ['asset', 'bundle', 'no-webgl', 'context-loading', 'context-ready'].includes(requestedFault) ? requestedFault : null;
   const path = resolve(root, `.${decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)}`);
   if (!path.startsWith(root + sep)) { response.writeHead(403).end(); return; }
-  if ((fault === 'asset' && (path.endsWith('aero-glass-interiors.png') || path.endsWith('maple-leaf.png'))) || (fault === 'bundle' && /[\\/]main-[^\\/]+\.js$/.test(path))) {
+  if ((fault === 'asset' && (path.endsWith('aero-glass-interiors.png') || path.endsWith('maple-leaf.png') || path.endsWith('wet-slate.png'))) || (fault === 'bundle' && /[\\/]main-[^\\/]+\.js$/.test(path))) {
     response.writeHead(503).end('Deliberate regression-test failure'); return;
   }
   try {
@@ -46,4 +46,4 @@ http.createServer(async (request, response) => {
     }
     response.writeHead(200, { 'Content-Type': mime[extname(path)] || 'application/octet-stream', 'Cache-Control': 'no-store' }).end(body);
   } catch { response.writeHead(404).end('Not found'); }
-}).listen(5174, '127.0.0.1', () => console.log('Mobile regression fixture: http://127.0.0.1:5174/?quality=mobile (fault=asset|bundle|no-webgl|context-loading|context-ready)'));
+}).listen(Number(process.env.PORT) || 5174, '127.0.0.1', () => console.log(`Mobile regression fixture: http://127.0.0.1:${Number(process.env.PORT) || 5174}/?quality=mobile (fault=asset|bundle|no-webgl|context-loading|context-ready)`));

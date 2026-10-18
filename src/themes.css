@@ -34,9 +34,21 @@ a.theme-choice:hover{background:#ffffff14;border-color:#ffffff77;transform:trans
 .theme-label strong{font-size:16px;font-weight:400;letter-spacing:.01em}
 .theme-label small{font-size:10px;font-weight:400;letter-spacing:.03em;opacity:.55}
 .theme-arrow{font-size:19px;opacity:.75}
-#future-worlds{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:23px;padding-top:19px;border-top:1px solid #ffffff16}
+#future-worlds{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;margin-top:23px;padding-top:19px;border-top:1px solid #ffffff16}
 .unavailable{border:0;border-radius:0;background:none;flex-direction:column;text-align:center;padding:8px 0;gap:10px;opacity:.5}
 .unavailable .theme-orb{width:24px;height:24px}
 .unavailable .theme-label strong{font-size:11px}
 .unavailable .theme-label small{font-size:9px}
 @media(max-width:600px){.theme-trigger{min-width:101px;padding:0 10px;font-size:10px;gap:6px}.hud .top-controls{gap:6px}#world-picker{padding:24px}.theme-choice{padding:16px;gap:15px}.picker-heading h1{font-size:23px}.unavailable{padding:6px 0}.theme-label small{font-size:9px}}
+
+:root[data-theme=monsoon]{background:#a7b9bc;color:#edf5f4}
+[data-theme=monsoon] #experience{background:#a7b9bc}
+[data-theme=monsoon] .vignette{background:radial-gradient(ellipse at 50% 40%,transparent 60%,#0d242d14);box-shadow:none}
+[data-theme=monsoon] .glass-button,[data-theme=monsoon] .world-mark,[data-theme=monsoon] .transport{border-color:#dcecef55;background:linear-gradient(135deg,#2b424966,#16313b44);box-shadow:inset 0 1px 1px #f0faff33,0 4px 22px #102e341a}
+[data-theme=monsoon] .mark-orb{background:radial-gradient(ellipse at 30% 20%,#f6ffff,transparent 43%),radial-gradient(ellipse at 65% 85%,#173c43,transparent 65%),linear-gradient(140deg,#b8d4da,#537f88 65%,#93b6b5);box-shadow:inset 0 0 2px 2px #e7fcff80,0 1px 7px #183f4540}
+[data-theme=monsoon] #loading{background:radial-gradient(ellipse at 50% 38%,#dbe5e5,#91a8ad 90%)}
+[data-theme=monsoon] #loading span{color:#415c63}
+[data-theme=monsoon] .loading-orb{background:radial-gradient(circle at 30% 25%,#f5ffff,#a0c4cc88 40%,#294e5a66 80%,#d3e6e9);box-shadow:inset -5px -7px 12px #25465028,0 8px 18px #203d4922}
+[data-theme=monsoon] #world-picker{background:linear-gradient(145deg,#354e55ed,#172c34ed)}
+[data-theme=monsoon] #notice{background:#28434eaf}
+[data-theme=monsoon] #loading-recovery button{color:#304e58;background:#effbffa0}

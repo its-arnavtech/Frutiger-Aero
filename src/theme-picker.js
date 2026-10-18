@@ -3,7 +3,7 @@ import { resolveTheme, themeHref, themes } from './themes.js';
 export const activeTheme = resolveTheme(location.search);
 document.documentElement.dataset.theme = activeTheme.id;
 document.title = activeTheme.title;
-document.querySelector('link[rel=icon]').href = activeTheme.id === 'autumn' ? '/autumn.svg' : '/favicon.svg';
+document.querySelector('link[rel=icon]').href = ({ autumn: '/autumn.svg', monsoon: '/monsoon.svg' })[activeTheme.id] || '/favicon.svg';
 document.querySelector('meta[name="theme-color"]').content = activeTheme.color;
 document.querySelector('meta[name="description"]').content = activeTheme.description;
 document.querySelector('#world').setAttribute('aria-label', activeTheme.description);
