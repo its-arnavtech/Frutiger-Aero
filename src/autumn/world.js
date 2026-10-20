@@ -75,7 +75,7 @@ export async function createWorld(canvas, { signal, onStage }) {
   signal.addEventListener('abort', () => sun.shadow.dispose(), { once: true });
 
   await onStage('Carving the river valley');
-  buildTerrain(scene, maps);
+  const terrain = buildTerrain(scene, maps);
   const village = buildVillage(scene, maps);
   await onStage('Turning the forest to gold');
   const forest = await createForest(scene, renderer, signal, branchMap, maps);
@@ -121,7 +121,7 @@ export async function createWorld(canvas, { signal, onStage }) {
       if (signal.aborted) return;
       if (!reducedMotion) elapsed += dt;
       const time = elapsed * .45 + progress * 75;
-      aim(progress, pointer); forest.update(time, camera); leaves.update(time); village.update(time);
+      aim(progress, pointer); forest.update(time, camera); terrain.userData.updateDetails(camera); leaves.update(time); village.update(time);
       water.material.uniforms.time.value = time * .2;
       floatSeeds.forEach((p, i) => {
         const z = p.z + Math.sin(time * .04 + p.phase) * 2, x = riverX(z) + p.dx;

@@ -10,15 +10,20 @@ export function groundNoise(x, z) {
 }
 export function alpineHeight(x, z) {
   const summit = (cx, cz, width, depth, height) => {
-    const dx = (x - cx) / width, dz = (z - cz) / depth, r = Math.hypot(dx, dz), a = Math.atan2(dz, dx);
-    const envelope = Math.max(0, 1 - r);
-    const ribs = 1 - .24 * Math.abs(Math.sin(a * 6 + groundNoise(x * .008, z * .008) * 2)) * smooth(0, .4, r);
-    return envelope ** .94 * height * ribs;
+    const dx = (x - cx) / width, dz = (z - cz) / depth;
+    // Unequal rock faces and wind-cut shoulders; avoid a radial sine pattern,
+    // which gave every peak the same regularly spaced, star-shaped ribs.
+    const warp = (groundNoise(x * .004 + 9, z * .005) - .5) * .16;
+    const taper = smooth(0, .25, Math.hypot(dx, dz));
+    const a = dx + warp * taper, b = dz + warp * .55 * taper;
+    const r = (Math.abs(a) ** 1.65 + Math.abs(b) ** 1.65) ** (1 / 1.65);
+    const shoulders = .9 + groundNoise(x * .005 - 18, z * .004 + 21) * .2;
+    return Math.max(0, 1 - r) ** 1.16 * height * shoulders;
   };
   const mass = Math.max(summit(20, -1160, 690, 580, 740), summit(-370, -1250, 500, 510, 570), summit(355, -1370, 510, 580, 660), summit(-730, -1500, 450, 520, 540), summit(760, -1600, 490, 540, 590));
   const warp = groundNoise(x * .007, z * .007) * 25;
-  const brokenFaces = 1 - Math.abs(groundNoise((x + warp) * .039, (z - warp) * .031) * 2 - 1);
-  const erosion = (groundNoise(x * .012, z * .012) - .5) * 94 + (brokenFaces - .6) * 58 + (groundNoise(x * .11, z * .11) - .5) * 11;
+  const brokenFaces = 1 - Math.abs(groundNoise((x + warp) * .022, (z - warp) * .012) * 2 - 1);
+  const erosion = (groundNoise(x * .008, z * .009) - .5) * 110 + (brokenFaces - .6) * 44 + (groundNoise(x * .07, z * .07) - .5) * 7;
   return 6 + mass + erosion * smooth(0, 90, mass);
 }
 

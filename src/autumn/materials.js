@@ -30,8 +30,10 @@ export function forestFloor(maps) {
     shader.fragmentShader = `varying vec3 vGround; uniform sampler2D grassMap;\n${shader.fragmentShader}`
       .replace('#include <map_fragment>', `#include <map_fragment>
         float mossCoverage=smoothstep(.18,.7,sin(vGround.x*.041+sin(vGround.z*.026)*2.)*sin(vGround.z*.057));
-        vec3 moss=texture2D(grassMap,vGround.xz*.18).rgb*vec3(.72,1.18,.48);
-        diffuseColor.rgb=mix(diffuseColor.rgb,moss,.72+mossCoverage*.21);
+        vec3 moss=texture2D(grassMap,vGround.xz*.26).rgb*vec3(.69,1.02,.52);
+        // Irregular litter beds break up the former uniformly clipped lawn.
+        float litter=.5+.5*sin(vGround.x*.19+sin(vGround.z*.12)*2.)*sin(vGround.z*.17+vGround.x*.06);
+        diffuseColor.rgb=mix(diffuseColor.rgb*vec3(.78,.72,.57),moss,.28+mossCoverage*.45+litter*.23);
         // Smooth, pale mineral sand beneath the water, without the former
         // high-contrast pebble pattern painted over the entire lake.
         vec3 sand=vec3(.36,.31,.22)*(.91+.09*sin(vGround.x*.11+sin(vGround.z*.08)*2.));
@@ -64,12 +66,15 @@ export function mountainStone(map) {
         vec3 broad=texture2D(map,p.yz*.283+vec2(.31,.71)).rgb*weight.x+texture2D(map,p.xz*.283+vec2(.51,.13)).rgb*weight.y+texture2D(map,p.xy*.283+vec2(.81,.37)).rgb*weight.z;
         sampledDiffuseColor.rgb=mix(sampledDiffuseColor.rgb,broad,.22);
         diffuseColor*=sampledDiffuseColor;
-        diffuseColor.rgb*=.79+mountainNoise(ridgePosition.xz*.008)*.42;
+        float mineral=mountainNoise(ridgePosition.xy*.006+vec2(ridgePosition.z*.002,0.));
+        diffuseColor.rgb*=mix(vec3(.78,.84,.9),vec3(1.14,1.05,.89),mineral);
         float slope=normalize(ridgeNormal).y;
         float altitude=smoothstep(330.,620.,ridgePosition.y);
-        float snow= smoothstep(.32,.65,altitude*.65+mountainNoise(ridgePosition.xz*.027)*.35)*smoothstep(.23,.68,slope);
-        snow=smoothstep(.17,.57,snow);
-        diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(.48,.58,.65),vec3(.80,.84,.86),mountainNoise(ridgePosition.xz*.06)),snow);`)
+        float drift=mountainNoise(ridgePosition.xz*.027);
+        float scree=mountainNoise(ridgePosition.xz*.18)*.6+mountainNoise(ridgePosition.xy*.41)*.4;
+        float snow=smoothstep(.43,.72,altitude*.66+drift*.34)*smoothstep(.25,.76,slope);
+        snow=smoothstep(.18,.61,snow-(1.-scree)*.23);
+        diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(.36,.45,.53),vec3(.61,.68,.73),scree),snow);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         float rockRelief=dot(sampledDiffuseColor.rgb,vec3(.333));
         vec3 rx=dFdx(-vViewPosition), ry=dFdy(-vViewPosition), r1=cross(ry,normal), r2=cross(normal,rx);

@@ -1,12 +1,17 @@
 import * as THREE from 'three';
 import { terrainHeight, riverX, riverWidth, rng, smooth, TAU } from './layout.js';
 import { forestFloor } from './materials.js';
-import { buildAlpineRange } from './geology.js';
+import { buildAlpineRange, groundNoise } from './geology.js';
+import { createRiverStone, createMeadowTuft, riverStoneMaterial } from './ground-details.js';
 
 export function buildTerrain(scene, maps) {
-  const rockMap = maps.rock;
-  const geometry = new THREE.PlaneGeometry(820, 1000, 340, 410);
-  geometry.rotateX(-Math.PI / 2); geometry.translate(0, 0, -80);
+  // Preserve sub-metre banks around the millrace rather than bridging the
+  // entire narrow stream with one coarse ground triangle.
+  const xs = [...new Set([...Array.from({ length: 341 }, (_, i) => -410 + i * 820 / 340), ...Array.from({ length: 81 }, (_, i) => -38 + i * .4)])].sort((a,b)=>a-b);
+  const zs = [...new Set([...Array.from({ length: 411 }, (_, i) => -580 + i * 1000 / 410), ...Array.from({ length: 51 }, (_, i) => -15 + i * .4)])].sort((a,b)=>a-b);
+  const geometry = new THREE.PlaneGeometry(820, 1000, xs.length - 1, zs.length - 1);
+  const grid = geometry.attributes.position;
+  for (let z = 0; z < zs.length; z++) for (let x = 0; x < xs.length; x++) grid.setXYZ(z * xs.length + x, xs[x], 0, zs[z]);
   const positions = geometry.attributes.position, colors = [], uv = geometry.attributes.uv;
   const soil = new THREE.Color('#e3ddc5'), moss = new THREE.Color('#c2cf9d'), copper = new THREE.Color('#e9d8b2'), rock = new THREE.Color('#a7a69b'), color = new THREE.Color();
   for (let i = 0; i < positions.count; i++) {
@@ -25,51 +30,94 @@ export function buildTerrain(scene, maps) {
   buildAlpineRange(scene, maps);
 
   const random = rng(5521), pose = new THREE.Object3D();
-  const stoneGeometry = new THREE.IcosahedronGeometry(1, 2);
-  const sp = stoneGeometry.attributes.position;
-  for (let i=0;i<sp.count;i++) { const x=sp.getX(i), y=sp.getY(i), z=sp.getZ(i), deform=1+.13*Math.sin(x*7.+z*4.)*Math.cos(y*5.); sp.setXYZ(i,x*deform,y*deform,z*deform); }
-  stoneGeometry.computeVertexNormals();
-  const stones = new THREE.InstancedMesh(stoneGeometry, new THREE.MeshStandardMaterial({ color: '#a8a79b', map: rockMap, normalMap: maps.rockNormal, normalScale: new THREE.Vector2(.75,.75), roughness: .73 }), 720);
-  let count = 0;
-  for (let i = 0; i < 620; i++) {
-    const z = -290 + random() * 540, side = random() > .5 ? 1 : -1;
-    const x = riverX(z) + side * (riverWidth(z) + random() * 10 - 1), y = terrainHeight(x, z);
-    if (y < -1) continue;
-    const scale = .4 + random() * 1.3;
-    pose.position.set(x, y - .1, z); pose.rotation.set(random(), random() * TAU, random()); pose.scale.set(scale * 1.4, scale * .75, scale); pose.updateMatrix(); stones.setMatrixAt(count++, pose.matrix);
+  const stoneMaterial = riverStoneMaterial(maps);
+  const rockBatches = Array.from({ length: 14 }, (_, i) => {
+    // Chips are permanently smaller meshes; nearby boulders keep their full
+    // fractured shape at every camera distance, without a visible LOD swap.
+    const stones = new THREE.InstancedMesh(createRiverStone(916 + i % 7 * 137, i < 7 ? 4 : 1), stoneMaterial, 700);
+    stones.count = 0; stones.receiveShadow = stones.castShadow = true;
+    stones.name = `Fractured river stones ${i + 1}`; scene.add(stones); return stones;
+  });
+  const tint = new THREE.Color();
+  function placeStone(x, z, scale, variant) {
+    const y = terrainHeight(x, z);
+    if (y < -1.6 || (x > -34 && x < -6 && Math.abs(z + 5) < 2.2)) return;
+    const stones = rockBatches[variant % 7 + (scale < .45 ? 7 : 0)];
+    if (stones.count >= stones.instanceMatrix.count) return;
+    pose.position.set(x, y - scale * .21, z);
+    // Flat, bedded stones sit into the earth instead of balancing on a point.
+    pose.rotation.set((random()-.5)*.5, random()*TAU, (random()-.5)*.35);
+    pose.scale.set(scale*(.9+random()*.65), scale, scale*(.75+random()*.4)); pose.updateMatrix();
+    stones.setMatrixAt(stones.count, pose.matrix);
+    tint.setHSL(.105+random()*.025, .045+random()*.045, .68+random()*.19);
+    stones.setColorAt(stones.count++, tint);
+  }
+  for (let i = 0; i < 420; i++) {
+    const z = -290 + random()*540, side = random()>.5 ? 1 : -1;
+    const x = riverX(z)+side*(riverWidth(z)+random()*9-1), s=.45+random()**2*1.9;
+    placeStone(x,z,s,i);
+    // Small fragments gather around boulders in uneven, geologically related groups.
+    for (let j=0;j<3;j++) {
+      const a=random()*TAU, r=s*(.7+random()*.9);
+      placeStone(x+Math.cos(a)*r,z+Math.sin(a)*r,.09+random()*.3,i+j);
+    }
   }
   for (let i = 0; i < 90; i++) {
-    const a = random() * TAU, r = 12 + random() * 8, x = Math.cos(a) * r, z = -155 + Math.sin(a) * r, y = terrainHeight(x, z);
-    if (y < -1.5 || y > 1.8) continue;
-    const s = .4 + random() * 1.2;
-    pose.position.set(x, y - .18, z); pose.rotation.set(random(), a, random()); pose.scale.set(s * 1.3, s * .65, s); pose.updateMatrix(); stones.setMatrixAt(count++, pose.matrix);
+    const a=random()*TAU,r=12+random()*8;
+    placeStone(Math.cos(a)*r,-155+Math.sin(a)*r,.2+random()*1.3,i);
   }
-  stones.count = count; stones.receiveShadow = true; stones.castShadow = true; stones.computeBoundingSphere(); stones.name = 'River stones'; scene.add(stones);
-  // Modeled clumps of dry grass soften the seam where the water meets the soil.
-  const blades = [], shades = [], grassRandom = rng(7151);
-  for (let b = 0; b < 9; b++) {
-    const a = b * 2.4, h = .45 + grassRandom() * .6, bend = .18 + grassRandom() * .3;
-    const dx = Math.cos(a), dz = Math.sin(a), w = .025;
-    const base = [-dz * w, 0, dx * w], edge = [dz * w, 0, -dx * w];
-    const mid = [dx * bend * .4, h * .65, dz * bend * .4], tip = [dx * bend, h, dz * bend];
-    blades.push(...base, ...edge, ...mid, ...base, ...mid, ...tip);
-    for (let v = 0; v < 6; v++) shades.push(...new THREE.Color(v === 5 ? '#b5bc63' : '#5f7d36').toArray());
+  for (let i = 0; i < 100; i++) {
+    const x=-31+random()*23, side=random()>.5?1:-1;
+    placeStone(x,-5+side*(2.3+random()*.6),.14+random()*.37,i);
   }
-  const grassGeometry = new THREE.BufferGeometry(); grassGeometry.setAttribute('position', new THREE.Float32BufferAttribute(blades, 3)); grassGeometry.setAttribute('color', new THREE.Float32BufferAttribute(shades, 3)); grassGeometry.computeVertexNormals();
-  const grass = new THREE.InstancedMesh(grassGeometry, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 2800);
-  count = 0;
-  for (let i = 0; i < 2400; i++) {
-    const z = -260 + random() * 500, side = random() > .5 ? 1 : -1;
-    const x = riverX(z) + side * (riverWidth(z) + 1 + random() * 7), y = terrainHeight(x, z);
-    if (y < -.1) continue;
-    pose.position.set(x, y, z); pose.rotation.set(0, random() * TAU, 0); pose.scale.setScalar(.6 + random() * .8); pose.updateMatrix(); grass.setMatrixAt(count++, pose.matrix);
+  for (const stones of rockBatches) stones.computeBoundingSphere();
+
+  const grass = new THREE.InstancedMesh(createMeadowTuft(7151), new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: .92, envMapIntensity: .65 }), 6800);
+  let count = 0;
+  function plantTuft(x,z) {
+    const y=terrainHeight(x,z);
+    if (y<.4 || groundNoise(x*.24,z*.24)<.27) return;
+    pose.position.set(x,y-.025,z); pose.rotation.set(0,random()*TAU,0);
+    pose.scale.setScalar(.7+random()*.9);pose.updateMatrix();grass.setMatrixAt(count++,pose.matrix);
   }
-  for (let i = 0; i < 400; i++) {
-    const a = random() * TAU, r = 5 + random() * 13, x = Math.cos(a) * r, z = -155 + Math.sin(a) * r, y = terrainHeight(x, z);
-    if (y < .15) continue;
-    pose.position.set(x, y, z); pose.rotation.set(0, a, 0); pose.scale.setScalar(.5 + random() * .8); pose.updateMatrix(); grass.setMatrixAt(count++, pose.matrix);
+  for(let i=0;i<6200;i++) {
+    const z=-260+random()*500,side=random()>.5?1:-1;
+    plantTuft(riverX(z)+side*(riverWidth(z)+1+random()**1.5*17),z);
   }
-  grass.count = count; grass.layers.set(1); grass.receiveShadow = true; grass.computeBoundingSphere(); grass.name = 'Autumn sedges'; scene.add(grass);
+  for(let i=0;i<600;i++) {
+    const a=random()*TAU,r=5+random()*13;plantTuft(Math.cos(a)*r,-155+Math.sin(a)*r);
+  }
+  grass.count=count;grass.layers.set(1);grass.receiveShadow=true;grass.computeBoundingSphere();grass.name='Curved meadow grass and dry sedges';scene.add(grass);
+  // Instance culling keeps the new detail affordable. The reflected half of
+  // the scene is included, so visible stones never vanish from the river.
+  const detailBatches = [...rockBatches, grass].map(mesh => {
+    const entries = Array.from({ length: mesh.count }, (_, i) => {
+      const matrix = new THREE.Matrix4(); mesh.getMatrixAt(i, matrix);
+      const color = mesh.instanceColor ? new THREE.Color() : null;
+      if (color) mesh.getColorAt(i, color);
+      return { matrix, color, bounds: mesh.geometry.boundingSphere.clone().applyMatrix4(matrix) };
+    });
+    mesh.frustumCulled = false;
+    return { mesh, entries, reflected: mesh !== grass };
+  });
+  const view = new THREE.Matrix4(), previous = new THREE.Matrix4(), frustum = new THREE.Frustum(), mirror = new THREE.Sphere();
+  terrain.userData.updateDetails = camera => {
+    camera.updateMatrixWorld(); view.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    if (view.equals(previous)) return;
+    previous.copy(view); frustum.setFromProjectionMatrix(view);
+    for (const { mesh, entries, reflected } of detailBatches) {
+      let visible = 0;
+      for (const entry of entries) {
+        mirror.copy(entry.bounds); mirror.center.y *= -1;
+        if (!frustum.intersectsSphere(entry.bounds) && !(reflected && frustum.intersectsSphere(mirror))) continue;
+        mesh.setMatrixAt(visible, entry.matrix);
+        if (entry.color) mesh.setColorAt(visible, entry.color);
+        visible++;
+      }
+      mesh.count = visible; mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    }
+  };
   return terrain;
 }
 

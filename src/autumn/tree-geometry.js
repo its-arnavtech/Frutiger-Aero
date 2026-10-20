@@ -29,7 +29,13 @@ export function createDeciduousGeometry(seed, { hero = false, kind = 0 } = {}) {
     const normal = v((random() - .5) * 1.8, .12 + random() * .88, (random() - .5) * 1.8).normalize();
     const right = new THREE.Vector3().crossVectors(v(Math.cos(turn), .15, Math.sin(turn)), normal).normalize();
     const up = new THREE.Vector3().crossVectors(normal, right).normalize();
-    const offset = leaf.position.length / 3, atlas = Math.floor(random() * 4), tone = .76 + random() * .24;
+    // A tree changes colour by species and exposure. Uniform random colours on
+    // every twig made all crowns read as the same orange/green confetti.
+    const pick = random(), preferred = kind === 1 ? 1 : kind === 2 ? 0 : 2;
+    const atlas = pick < .78 ? preferred : pick < .92 ? 3 : Math.floor(random() * 4);
+    const offset = leaf.position.length / 3;
+    const shelter = THREE.MathUtils.clamp(origin.y * .7 + Math.hypot(origin.x, origin.z) * .55, .3, 1);
+    const tone = (.77 + random() * .21) * (.67 + shelter * .33);
     for (const [x, y, u, w] of [[-.5, -.5, 0, 0], [.5, -.5, 1, 0], [.5, .5, 1, 1], [-.5, .5, 0, 1]]) {
       const p = origin.clone().addScaledVector(right, x * size).addScaledVector(up, y * size).addScaledVector(normal, x * y * size * .4);
       leaf.position.push(p.x, p.y, p.z); leaf.normal.push(normal.x, normal.y, normal.z);
@@ -38,7 +44,7 @@ export function createDeciduousGeometry(seed, { hero = false, kind = 0 } = {}) {
     }
     leaf.index.push(offset, offset + 1, offset + 2, offset, offset + 2, offset + 3);
   }
-  const lean = (random() - .5) * .07;
+  const lean = (random() - .5) * .13;
   const trunk = limb([v(0, -.012, 0), v(lean * .2, .14, -.008), v(lean, .33, .018), v(lean + .028, .57, -.025)], hero ? .048 : .024, .005, hero ? 18 : 12, hero ? 14 : 10, true);
   for (let i = 0; i < (hero ? 8 : 5); i++) {
     const a = i * TAU / (hero ? 8 : 5) + random() * .4, reach = .065 + random() * .065;
@@ -46,8 +52,8 @@ export function createDeciduousGeometry(seed, { hero = false, kind = 0 } = {}) {
   }
   const major = [], majorCount = 7;
   for (let i = 0; i < majorCount; i++) {
-    const level = i / (majorCount - 1), a = i * 2.39996 + random() * .7, start = trunk.getPoint(.2 + level * .74);
-    const reach = .57 - level * .31 + random() * .1, top = .44 + level * .43 + random() * .08 + (kind === 2 ? .08 : 0);
+    const level = i / (majorCount - 1), a = i * 2.39996 + random() * 1.15, start = trunk.getPoint(.17 + level * .76);
+    const reach = (.57 - level * .31) * (.7 + random() * .6), top = .4 + level * .43 + random() * .13 + (kind === 2 ? .08 : 0);
     const end = v(Math.cos(a) * reach, top, Math.sin(a) * reach);
     const c = limb([start, start.clone().add(v(Math.cos(a + .25) * .11, .09, Math.sin(a + .25) * .11)), v(end.x * .65, top - .09, end.z * .65), end], (hero ? .025 : .016) * (1 - level * .65), .0018, hero ? 12 : 8, hero ? 10 : 7);
     major.push({ c, a });
@@ -69,7 +75,7 @@ export function createDeciduousGeometry(seed, { hero = false, kind = 0 } = {}) {
         for (let n = 0; n < (hero ? 72 : 38); n++) {
           const where = shoot.getPoint(.12 + random() * .88);
           where.add(v((random() - .5) * .17, (random() - .5) * .11, (random() - .5) * .17));
-          const size = (hero ? .018 : .037) + random() * (hero ? .015 : .02);
+          const size = (hero ? .016 : .027) + random() * (hero ? .012 : .018);
           spray(where, size, random() * TAU);
           spray(where.clone().add(v(.012 * Math.cos(n), .015, .012 * Math.sin(n))), size * .85, random() * TAU);
         }

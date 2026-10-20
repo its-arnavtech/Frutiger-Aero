@@ -18,18 +18,18 @@ export async function createForest(scene, renderer, signal, branchMap, maps) {
     const leafMap = branchMap, barkMap = maps.bark, barkNormal = maps.barkNormal;
     for (const texture of [leafMap, barkMap, barkNormal].filter(Boolean)) { texture.anisotropy = renderer.capabilities.getMaxAnisotropy(); textures.add(texture); }
     foliageTextures.add(leafMap);
-    const foliage = new THREE.MeshStandardMaterial({ map: leafMap, vertexColors: true, alphaTest: .32, alphaToCoverage: true, roughness: .54, envMapIntensity: .8, side: THREE.DoubleSide });
+    const foliage = new THREE.MeshStandardMaterial({ map: leafMap, vertexColors: true, alphaTest: .32, alphaToCoverage: true, roughness: .73, envMapIntensity: .6, side: THREE.DoubleSide });
     foliage.onBeforeCompile = shader => {
       shader.uniforms.autumnTime = time;
       shader.vertexShader = `uniform float autumnTime;\n${shader.vertexShader}`.replace('#include <begin_vertex>', `#include <begin_vertex>
         vec3 root = instanceMatrix[3].xyz;
         float wind=sin(autumnTime*.7+root.x*.12+root.z*.09);
-        transformed.x += (wind*.005+sin(autumnTime*2.+position.z*25.)*.002)*pow(max(position.y,0.),2.);`);
+        transformed.x += (wind*.003+sin(autumnTime*2.+position.z*25.)*.001)*pow(max(position.y,0.),2.);`);
       // Preserve the photographed leaf colour, spots and veins. Per-tree tint
       // supplies small natural variations instead of painting the whole leaf orange.
       shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         float relief = dot(sampledDiffuseColor.rgb, vec3(.25,.6,.15));
-        vec2 rise=vec2(dFdx(relief),dFdy(relief))*.004;
+        vec2 rise=vec2(dFdx(relief),dFdy(relief))*.012;
         vec3 sx=dFdx(-vViewPosition), sy=dFdy(-vViewPosition), r1=cross(sy,normal), r2=cross(normal,sx);
         float det=dot(sx,r1);
         normal=normalize(abs(det)*normal-sign(det)*(rise.x*r1+rise.y*r2));`);
@@ -97,7 +97,8 @@ export function createLeaves(scene, leafMap) {
   for (let i = 0; i < 3500; i++) {
     const z = -260 + random() * 490, side = random() > .5 ? 1 : -1, x = riverX(z) + side * (riverWidth(z) + 7 + random() * 28), y = terrainHeight(x, z);
     if (y < 0) continue;
-    pose.position.set(x, y + .05, z); pose.rotation.set(-Math.PI / 2, 0, random() * TAU); pose.scale.setScalar(.22 + random() * .4); pose.updateMatrix(); carpet.setMatrixAt(used++, pose.matrix);
+    const normal = new THREE.Vector3(-(terrainHeight(x + .2, z) - terrainHeight(x - .2, z)) / .4, 1, -(terrainHeight(x, z + .2) - terrainHeight(x, z - .2)) / .4).normalize();
+    pose.position.set(x, y + .035, z); pose.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal); pose.rotateZ(random() * TAU); pose.scale.setScalar(.16 + random() * .28); pose.updateMatrix(); carpet.setMatrixAt(used++, pose.matrix);
   }
   const groundNormal = new THREE.Vector3(), leafUp = new THREE.Vector3(0, 0, 1);
   for (let i = 0; i < 1700; i++) {

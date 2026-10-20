@@ -39,22 +39,29 @@ export function buildWatermill(scene, finishes) {
       if (ground < q.y - .25) fixed.add('wood', rod([q.x, ground, q.z], [q.x, q.y - .25, q.z], .12));
     }
   }
-  // Retaining stones line the real trench, which shares the river's water level.
-  for (let x = -27; x <= -10; x += 1.2) for (const side of [-1, 1]) fixed.add('stone', new THREE.BoxGeometry(1.14, .65, .48), { at: [x, .1, -5 + side * 1.8] });
   fixed.build(root, 'Mill flume and tailrace');
   const clock = { value: 0 };
-  const stream = new THREE.ShaderMaterial({ side: THREE.DoubleSide, transparent: true, depthWrite: false, uniforms: { time: clock },
+  const stream = new THREE.ShaderMaterial({ side: THREE.DoubleSide, transparent: true, depthWrite: false, uniforms: { time: clock, runout: { value: 0 }, flowLength: { value: 1 } },
     vertexShader: 'varying vec2 flowUv;void main(){flowUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader: `varying vec2 flowUv;uniform float time;void main(){
-      float line=.5+.5*sin(flowUv.x*37.+sin(flowUv.y*8.-time*2.));
-      float rush=.5+.5*sin(flowUv.y*26.-time*7.+flowUv.x*5.);
-      float edge=smoothstep(0.,.13,flowUv.x)*(1.-smoothstep(.87,1.,flowUv.x));
-      gl_FragColor=vec4(mix(vec3(.23,.38,.36),vec3(.82,.91,.88),line*rush*.7),edge*(.56+line*.3));}`,
+    fragmentShader: `varying vec2 flowUv;uniform float time,runout,flowLength;
+      float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+      float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+        return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+1.),f.x),f.y);}
+      void main(){
+      float downstream=flowUv.y-time*.65;
+      float ribbons=noise(vec2(flowUv.x*19.+noise(vec2(downstream*.7,2.))*2.,downstream*2.1));
+      float broken=noise(vec2(flowUv.x*41.,downstream*7.));
+      float glint=smoothstep(.57,.88,ribbons)*(.4+.6*broken);
+      float edge=smoothstep(0.,.18,flowUv.x)*(1.-smoothstep(.82,1.,flowUv.x));
+      float dissolve=mix(1.,1.-smoothstep(.58,1.,flowUv.y/flowLength),runout);
+      vec3 color=mix(vec3(.14,.27,.25),vec3(.8,.89,.86),.19+glint*.8);
+      float alpha=mix(.69+glint*.28,.12+glint*.55,runout)*edge*dissolve;
+      gl_FragColor=vec4(color,alpha);}`,
   });
   const flow = new THREE.BufferGeometry(); flow.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3)); flow.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); flow.setIndex(index); flow.computeVertexNormals();
   const troughWater = new THREE.Mesh(flow, stream); troughWater.name = 'Downhill water in the supply flume'; troughWater.renderOrder = 3; root.add(troughWater);
   // Water leaves the lip, hits the upper paddles, and drops into the tailrace.
-  const fall = new THREE.PlaneGeometry(1.1, 7.9, 5, 24), p = fall.attributes.position;
+  const fall = new THREE.PlaneGeometry(1.65, 7.9, 5, 48), p = fall.attributes.position;
   const fallingPath = new THREE.CatmullRomCurve3([
     millRace.lip, [-30.3, 7.75, -6.35], [-30.3, 6, -8.35],
     [-30.3, 4, -8.9], [-30.3, 1.4, -7.9], [-30.3, .08, -7.4],
@@ -67,9 +74,37 @@ export function buildWatermill(scene, finishes) {
     fall.attributes.uv.setY(i, t * fallingPath.getLength() * .5);
   }
   fall.computeVertexNormals(); const curtain = new THREE.Mesh(fall, stream); curtain.name = 'Water crossing the paddles into the pool'; curtain.renderOrder = 3; root.add(curtain);
+  // A sheet has almost no projected area when seen along the wheel axle.
+  // Give the water a visible, rounded front edge over the actual paddles:
+  // this is a second surface of the same stream, not a camera-facing sprite.
+  const front = new THREE.PlaneGeometry(.58, 1, 4, 48), fp = front.attributes.position;
+  for (let i = 0; i < fp.count; i++) {
+    const t = 1 - front.attributes.uv.getY(i), centre = fallingPath.getPointAt(t);
+    const width = .65 + t * .35;
+    fp.setXYZ(i, centre.x + .825 * width, centre.y, centre.z + fp.getX(i));
+    front.attributes.uv.setY(i, t * fallingPath.getLength() * .5);
+  }
+  front.computeVertexNormals();
+  const edgeWater = new THREE.Mesh(front, stream); edgeWater.name = 'Visible water spilling over the front paddle edges'; edgeWater.renderOrder = 3; root.add(edgeWater);
+  // Moving current continues through the excavated stream bed to the river.
+  const tailPath = new THREE.CatmullRomCurve3([
+    [-30.3, .045, -7.4], [-28, .04, -5.4], [-22, .035, -5],
+    [-15, .03, -5], [-8, .025, -5],
+  ].map(p => new THREE.Vector3(...p)), false, 'centripetal');
+  const tail = new THREE.PlaneGeometry(1, 1, 8, 80), tp = tail.attributes.position;
+  for (let i = 0; i < tp.count; i++) {
+    const t = 1 - tail.attributes.uv.getY(i), centre = tailPath.getPointAt(t);
+    across.crossVectors(up, tailPath.getTangentAt(t)).normalize();
+    const q = centre.addScaledVector(across, tp.getX(i) * (1.7 + Math.sin(t * Math.PI) * .5));
+    tp.setXYZ(i, q.x, q.y, q.z); tail.attributes.uv.setY(i, t * tailPath.getLength() * .5);
+  }
+  tail.computeVertexNormals();
+  const outflowMaterial = stream.clone();
+  outflowMaterial.uniforms = { time: clock, runout: { value: 1 }, flowLength: { value: tailPath.getLength() * .5 } };
+  const outflow = new THREE.Mesh(tail, outflowMaterial); outflow.name = 'Visible current from the wheel to the river'; outflow.renderOrder = 3; root.add(outflow);
   const foamMaterial = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { time: clock },
     vertexShader: 'varying vec2 foamUv;void main(){foamUv=uv*2.-1.;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader: `varying vec2 foamUv;uniform float time;void main(){float r=length(foamUv);float turbulence=sin(foamUv.x*23.+time*5.)*sin(foamUv.y*31.-time*4.);float a=(1.-smoothstep(.15,1.,r))*(.14+.24*smoothstep(-.2,.8,turbulence));gl_FragColor=vec4(.73,.85,.79,a);}`,
+    fragmentShader: `varying vec2 foamUv;uniform float time;void main(){float r=length(foamUv);float turbulence=sin(foamUv.x*23.+time*5.)*sin(foamUv.y*31.-time*4.);float rings=pow(.5+.5*sin(r*35.-time*5.),6.);float a=(1.-smoothstep(.15,1.,r))*(.24+.3*smoothstep(-.2,.8,turbulence)+rings*.3);gl_FragColor=vec4(.81,.9,.86,a);}`,
   });
   const foam = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 3.3), foamMaterial);
   foam.rotation.x = -Math.PI / 2; foam.position.copy(fallingPath.getPoint(1)); foam.position.y = .035; foam.renderOrder = 4; root.add(foam);

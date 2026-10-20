@@ -7,6 +7,8 @@ import { cameraAt } from '../src/autumn/journey.js';
 import { buildCottage } from '../src/autumn/cottage.js';
 import { buildWatermill } from '../src/autumn/mill.js';
 import { createBatcher } from '../src/build.js';
+import { buildTerrain } from '../src/autumn/landscape.js';
+import { createRiverStone, createMeadowTuft } from '../src/autumn/ground-details.js';
 
 test('the mill has a downhill supply and an uninterrupted submerged outlet into the river', () => {
   for (let i = 1; i < millRace.feed.length; i++) assert.ok(millRace.feed[i][1] < millRace.feed[i - 1][1]);
@@ -46,9 +48,66 @@ test('modeled mill water reaches the paddles and flows downward all the way into
   assert.ok(landing.y > 0 && landing.y < .1 && terrainHeight(landing.x, landing.z) < 0, 'Water does not meet the pool');
   assert.equal(trough.material, fall.material, 'The streams must share their animation clock');
   mill.update(12); assert.equal(fall.material.uniforms.time.value, 12);
+  const front = scene.getObjectByName('Visible water spilling over the front paddle edges');
+  const outflow = scene.getObjectByName('Visible current from the wheel to the river');
+  assert.ok(front && outflow, 'The water must be visible from the wheel face and continue to the river');
+  assert.equal(outflow.material.uniforms.time, fall.material.uniforms.time, 'Tailrace animation must continue with the falling water');
+  for (const { centre } of rows(outflow, 9)) {
+    assert.ok(terrainHeight(centre.x, centre.z) < centre.y - .1, 'The downstream current intersects dry ground');
+  }
+  // The earlier flat water sheet was edge-on from the actual village camera.
+  const camera = new THREE.PerspectiveCamera(58, 1.6, .1, 4400);
+  camera.position.copy(cameraAt(.165)); camera.lookAt(...millRace.wheel); camera.updateMatrixWorld();
+  let visibleRows = 0;
+  const vertices = front.geometry.attributes.position;
+  for (let i = 0; i < vertices.count; i += 5) {
+    const left = new THREE.Vector3().fromBufferAttribute(vertices, i).project(camera);
+    const right = new THREE.Vector3().fromBufferAttribute(vertices, i + 4).project(camera);
+    if (Math.abs(left.x - right.x) * 1440 / 2 > 5) visibleRows++;
+  }
+  assert.ok(visibleRows > 40, 'The water edge has become too thin to see along the flight');
   const resources = new Set();
   scene.traverse(o => { o.geometry?.dispose(); if (o.material) resources.add(o.material); });
   resources.forEach(m => m.dispose());
+});
+
+test('the rendered terrain leaves the narrow millrace open, including between grid vertices', () => {
+  const maps = Object.fromEntries(['leafGround','grassNormal','leafRough','grass','alpine','rock'].map(name => [name, null]));
+  const scene = new THREE.Scene(), ground = buildTerrain(scene, maps);
+  ground.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0));
+  for (let x = -30; x < -8; x += .31) {
+    ray.ray.origin.set(x, 30, -5);
+    const hit = ray.intersectObject(ground)[0];
+    assert.ok(hit && hit.point.y < -.4, `Ground triangles obstruct the stream at ${x}`);
+  }
+  const resources = new Set();
+  scene.traverse(o => { o.geometry?.dispose(); if (o.material) resources.add(o.material); });
+  resources.forEach(m => m.dispose());
+});
+
+test('shoreline stones have distinct eroded silhouettes and meadow blades are small curved ribbons', () => {
+  const shapes = [];
+  for (let i = 0; i < 7; i++) {
+    const stone = createRiverStone(916 + i * 137);
+    stone.computeBoundingBox(); shapes.push(stone.boundingBox.getSize(new THREE.Vector3()).toArray().map(n => n.toFixed(3)).join(','));
+    const p = stone.attributes.position, n = stone.attributes.normal;
+    assert.ok(p.count > 200 && stone.index.count > 1000);
+    for (let v = 0; v < p.count; v++) {
+      assert.ok(Number.isFinite(p.getX(v) + p.getY(v) + p.getZ(v)));
+      assert.ok(Math.abs(Math.hypot(n.getX(v), n.getY(v), n.getZ(v)) - 1) < .001);
+    }
+    stone.dispose();
+  }
+  assert.equal(new Set(shapes).size, 7, 'All rocks have the same silhouette');
+  const grass = createMeadowTuft(7151); grass.computeBoundingBox();
+  assert.ok(grass.boundingBox.max.y < .51 && grass.boundingBox.max.y > .3);
+  const p = grass.attributes.position;
+  for (let i = 0; i < p.count; i += 8) {
+    assert.ok(p.getY(i + 4) > p.getY(i + 2), 'A blade folds into the ground');
+    assert.ok(Math.hypot(p.getX(i + 6) - p.getX(i), p.getZ(i + 6) - p.getZ(i)) > .05, 'A blade is a rigid straight spike');
+  }
+  grass.dispose();
 });
 
 test('all cottage windows, including the upper sanctuary, are real openings in the plaster', () => {

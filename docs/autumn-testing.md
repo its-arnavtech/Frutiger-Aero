@@ -49,3 +49,15 @@ These checks used the desktop in-app Chromium browser. They do not establish iPh
 - Earlier desktop inspection on October 18 covered the village, lake and mountain material. The subsequent mountain shading, waterfall flow-direction fix and shared-helper extraction have **not** received a fresh browser check.
 - At the user's request, no preview server, browser rendering, screenshot pass or mobile fixture was run for this final development pass. Visual review and physical iPhone 12/Safari validation remain pending.
 - Before merging to main, inspect the wheel at roughly 16.5% of the journey, the Mirror lake mountain, all sanctuary windows and the overhead shallows. Check the water texture runs downhill, foliage remains stable during forward/reverse travel, and the mountain's shaded gullies preserve detail.
+
+## Stream and shoreline pass on 2026-10-20
+
+- After the user authorized running the app again, the development preview was started on localhost:3000. Desktop inspection covered the mill at 16.5% and the mountain/lake approach at 22%, including reverse seeking.
+- The former waterfall was almost edge-on along the wheel axle. A second physical surface now exposes the stream over the outer paddles. Irregular animated highlights continue through the carved tailrace; they fade into the river. The rectangular retaining walls were replaced with irregular bank stones.
+- Terrain sampling is locally refined to 0.4 metres around the mill. Regression rays check the actual ground triangles along the outlet, not only the mathematical terrain function. Tests also check projected waterfall width from the village camera, downstream water clearance, seven distinct rock silhouettes and small curved grass blades.
+- Stones use several fixed fractured shapes, smaller chips, triplanar scanned mineral detail, surface relief, moss and wet bases. Frustum compaction includes reflected stones. Small chips use simpler permanent geometry, without camera-distance transitions.
+- Leaves are smaller, with species-weighted colours, uneven boughs, greater sheltered-crown shading and leaf relief. The ground has irregular leaf-litter patches and curved meadow tufts. Summit shapes no longer repeat six radial ribs; snow edges and mineral colour are less uniform.
+- All **60 automated tests pass** and the production bundle builds. No browser console errors were recorded. The existing large-chunk build warning remains for shared/original-world dependencies.
+- At **390 × 844**, Autumn reached `ready` with the mobile rendering profile, and the timeline and ancient-maple waypoint responded. This is desktop Chromium with a phone-sized viewport, not physical iPhone 12/Safari validation.
+- The desktop mill view reported about 20 FPS on this local browser at its adaptive 0.75 resolution floor; the portrait mobile-budget view reported about 57 FPS at 1.0. These are observations from this machine, not a performance guarantee. This pass does not establish photorealism or consistent 60 FPS across devices.
+- Screenshot: `artifacts/autumn-polish/mill-stream.png` (local, ignored by Git). Main remains pending the user's visual review.

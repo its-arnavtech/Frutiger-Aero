@@ -33,6 +33,8 @@ The village has individual roof shingles, stone foundations, timber frames, rece
 
 The sky and HDR environment use photographic source assets. Scanned leaf litter and weathered timber include normal and roughness maps. Transparent water reveals the actual smooth sandy bed and submerged shoreline stones; depth absorption, slow ripples and Fresnel reflections control its appearance. The former repeating gravel pattern on the water surface is removed. Imagegen supplied the leaf and alpine rock textures, applied to live 3D geometry. See the [autumn asset record and generation prompts](docs/autumn-assets.md) and [source licenses](docs/assets.md).
 
+The mill's visible paddle spill and downstream current share one animation clock. Sub-metre terrain around the mill keeps the narrow stream open. Seven eroded stone shapes, smaller chips, wet mineral surfaces and curved meadow grass break up the bank. Leaf colour varies primarily between trees, while smaller individual leaves retain their photographic veins and surface relief.
+
 ## Monsoon / Rainmere
 
 A vast clear lake faces one dramatic mountain beyond its far shore. Low green hills leave both sides open, and a photographic blue sky carries bright cumulus clouds. Travel over submerged pebbles, across the lake toward snowmelt cascades, and along the green shore before returning home. The mountain remains ahead throughout the continuous loop. No people, characters, buildings or human silhouettes are present.
