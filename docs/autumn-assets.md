@@ -31,17 +31,39 @@ These Poly Haven materials are CC0, downloaded at 1K with diffuse, OpenGL normal
 
 ## Reused photographic sources
 
-The CC0 Poly Haven sky photograph is warmed in the sky shader and its HDR companion lights surface reflections. Coast Sand supplies the riverbed; Marble Cliff supplies stone detail. Three.js's water normal texture animates the river surface. Autumn now uses connected, procedurally modeled roots, trunks, forks and twigs in `tree-geometry.js`, with the existing Metasequoia Bark scan and Grass Ground scan. Original-world foliage remains unchanged.
+The CC0 Poly Haven sky photograph is warmed in the sky shader and its HDR companion lights surface reflections. Marble Cliff supplies shoreline stone detail. The underwater terrain uses smooth mineral sand shading; the river has no painted gravel surface. Three.js's water normal texture animates the river surface. Autumn uses connected, procedurally modeled roots, trunks, forks and twigs in `tree-geometry.js`, with the existing Metasequoia Bark scan and Grass Ground scan. Original-world foliage remains unchanged.
 
 Source links and licenses are retained in [assets.md](assets.md). The landscape, village, bridge, waterwheel, mountain ridges, river, sedges and camera path are modeled procedurally in `src/autumn/`.
+
+## Individual maple atlas — detailed scene repair
+
+- Service: built-in imagegen, using the imagegen skill, 2026-10-18.
+- Runtime file: `public/assets/autumn/maple-leaf-atlas.png`.
+- Original output: `C:/Users/Arnav/.codex/generated_images/01a11eb4-b42d-7f51-9146-008ceda3fdef/exec-c66ff22a-0591-4541-ade7-6309d94652c0.png`.
+- The unmodified transparent atlas contains four leaves. Each live leaf uses one quadrant on its own twisted geometry, with its own normal, tone and orientation. It replaces the broad cluster cards in the current forest.
+
+Final generation prompt:
+
+> Use case: photorealistic-natural. A precise texture atlas for individual 3D autumn maple leaves. Square canvas, true transparent background. Exactly FOUR separate individual real sugar maple leaves, one centered in each of four equal square quadrants, with a generous clear margin around every leaf. No grid lines. Each leaf occupies about 80 percent of its quadrant. Upper left: fresh golden yellow with olive green along veins. Upper right: muted ochre and warm amber with tiny natural brown spots. Lower left: early autumn olive-green fading into yellow. Lower right: soft copper orange with gold edges. Each anatomically accurate broad five-lobed leaf points upward, with its short thin stem extending downward, entire leaf and stem fully inside its own quadrant. Flat orthographic botanical photography, softly illuminated from both sides with diffuse neutral daylight; no cast shadows, no directional shading, no gloss highlights baked in, no glow. Extremely fine sharp veins and surface detail, naturally serrated edges, small imperfect patches, realistic subtle wrinkles. Real leaf surface photography, not a drawing or vector silhouette. Transparent gaps around all four leaves. No text, no numbers, no watermarks, no branches, no other leaves, no background. All four leaves approximately the same scale. This is an albedo atlas for a living three-dimensional autumn forest.
 
 ## Golden maple spray — October 18 realism pass
 
 - Service: built-in imagegen service, using the imagegen skill.
 - Runtime file: `public/assets/autumn/golden-maple-spray.png`.
 - Original output: `C:/Users/Arnav/.codex/generated_images/01a11eb4-b42d-7f51-9146-008ceda3fdef/exec-d0c3274d-8f6a-45d4-87e4-ed09c88ab37f.png`.
-- Original transparent output copied without edits. Replaces the dense brown branch texture on live tree geometry; transparent gaps, coverage-preserving mipmaps and full camera geometry remain throughout the route.
+- Original transparent output copied without edits. This earlier spray is retained as a source asset; the current forest uses the individual maple atlas described above.
 
 Final generation prompt:
 
 > Use case: photorealistic-natural. Asset type: alpha-cutout leaf spray texture for a physically lit real-time 3D autumn maple tree. A fine natural branching twig carrying 12 to 16 separate freshly yellow autumn maple leaves. Broad anatomically correct five-lobed maple leaves, fine serrated edges, sharp branching veins, delicate thin stems, small natural curl, fresh luminous golden yellow and lemon yellow with a few yellow-green leaves and just one subtle amber leaf. The leaves form a sparse irregular fan from a twig entering the bottom center, each leaf clearly discernible, generous transparent gaps between leaves; about half of the square remains transparent. Use a straight-on orthographic botanical photograph, extremely crisp focus, neutral diffuse daylight, no baked shadows or directional sunlight. Genuine photographic leaf surface detail, natural minor imperfections. Entire spray inside the square with small clear margins. True transparent background including all gaps. No background, no white matte, no ground, no glow, no blurred leaves, no browned dead foliage, no orange clump, no text, no watermark. Square image.
+
+## Alpine slate
+
+- Runtime file: `public/assets/autumn/alpine-slate.png`.
+- Unmodified copy of the project's generated Monsoon slate asset, kept here so the Autumn branch remains independently runnable.
+- Generated by the built-in imagegen service on 2026-10-17, original output `exec-c1242344-8e9f-4cd5-a1af-88f8cf44dc08.png`.
+- Applied with triplanar projection at two scales to the modeled ridges. Snow and small-scale surface relief are computed in the material.
+
+Original generation prompt:
+
+> Use case: photorealistic-natural. Asset type: seamless PBR base-color texture for actual 3D alpine cliffs in a rainy mountain lake world. Generate a square, extremely detailed orthographic close-up of dark grey alpine sedimentary rock, fine horizontal bedding, irregular vertical fissures, broken slate faces, slightly brown mineral weathering and a few subtle pale quartz seams. Diffuse overcast illumination with no directional shadow, no specular highlight, flat exposure appropriate for an albedo map. Edge-to-edge surface, no perspective, no horizon, no landscape, no snow, no plants, no humans or animals, no objects, no writing, no watermark. Natural physically believable photographic rock detail at multiple scales, quiet neutral grey tones with restrained variation. The material is rain-darkened limestone, not lava or crystalline marble. Seamlessly tileable horizontally and vertically, square 2048 by 2048 if supported.

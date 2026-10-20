@@ -3,15 +3,13 @@ import * as THREE from 'three';
 export async function loadAutumnMaterials(load) {
   const sources = {
     leafGround: ['/assets/autumn/leaves_forest_ground_diff_1k.jpg', true],
-    leafNormal: ['/assets/autumn/leaves_forest_ground_nor_gl_1k.jpg'],
     leafRough: ['/assets/autumn/leaves_forest_ground_rough_1k.jpg'],
     timber: ['/assets/autumn/weathered_brown_planks_diff_1k.jpg', true],
     timberNormal: ['/assets/autumn/weathered_brown_planks_nor_gl_1k.jpg'],
     timberRough: ['/assets/autumn/weathered_brown_planks_rough_1k.jpg'],
-    soil: ['/assets/materials/coast_sand_01_diff_1k.jpg', true],
-    soilNormal: ['/assets/materials/coast_sand_01_nor_gl_1k.jpg'],
     rock: ['/assets/materials/marble_cliff_02_diff_1k.jpg', true],
     rockNormal: ['/assets/materials/marble_cliff_02_nor_gl_1k.jpg'],
+    alpine: ['/assets/autumn/alpine-slate.png', true],
     grass: ['/assets/materials/grass_ground_diff_1k.jpg', true],
     grassNormal: ['/assets/materials/grass_ground_nor_gl_1k.jpg'],
     bark: ['/assets/materials/metasequoia_bark_diff_1k.jpg', true],
@@ -27,18 +25,20 @@ export async function loadAutumnMaterials(load) {
 export function forestFloor(maps) {
   const material = new THREE.MeshStandardMaterial({ map: maps.leafGround, normalMap: maps.grassNormal, normalScale: new THREE.Vector2(.7, .7), roughnessMap: maps.leafRough, roughness: .93, vertexColors: true, envMapIntensity: .85 });
   material.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, { soilMap: { value: maps.soil }, grassMap: { value: maps.grass } });
+    Object.assign(shader.uniforms, { grassMap: { value: maps.grass } });
     shader.vertexShader = `varying vec3 vGround;\n${shader.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\nvGround=position;');
-    shader.fragmentShader = `varying vec3 vGround; uniform sampler2D soilMap; uniform sampler2D grassMap;\n${shader.fragmentShader}`
+    shader.fragmentShader = `varying vec3 vGround; uniform sampler2D grassMap;\n${shader.fragmentShader}`
       .replace('#include <map_fragment>', `#include <map_fragment>
-        float wet=1.-smoothstep(.1,2.4,vGround.y);
         float mossCoverage=smoothstep(.18,.7,sin(vGround.x*.041+sin(vGround.z*.026)*2.)*sin(vGround.z*.057));
-        vec3 soil=texture2D(soilMap,vGround.xz*.32).rgb;
         vec3 moss=texture2D(grassMap,vGround.xz*.18).rgb*vec3(.72,1.18,.48);
         diffuseColor.rgb=mix(diffuseColor.rgb,moss,.72+mossCoverage*.21);
-        diffuseColor.rgb=mix(diffuseColor.rgb,soil*vec3(.46,.43,.38),wet*.85);
+        // Smooth, pale mineral sand beneath the water, without the former
+        // high-contrast pebble pattern painted over the entire lake.
+        vec3 sand=vec3(.36,.31,.22)*(.91+.09*sin(vGround.x*.11+sin(vGround.z*.08)*2.));
+        diffuseColor.rgb=mix(diffuseColor.rgb,sand,1.-smoothstep(-.1,1.3,vGround.y));
         diffuseColor.rgb*=.84+.16*sin(vGround.z*.025+vGround.x*.019);`)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor=mix(.32,roughnessFactor,smoothstep(.1,2.3,vGround.y));');
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor=mix(.55,roughnessFactor,smoothstep(.1,2.3,vGround.y));')
+      .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal=normalize(mix(normal,nonPerturbedNormal,1.-smoothstep(0.,1.2,vGround.y)));');
   };
   material.customProgramCacheKey = () => 'amberfall-leaf-litter';
   return material;
@@ -49,22 +49,34 @@ export function timberMaterial(maps, color) {
 }
 
 export function mountainStone(map) {
-  const material = new THREE.MeshStandardMaterial({ color: '#b9b8b1', map, vertexColors: true, roughness: 1 });
+  const material = new THREE.MeshStandardMaterial({ color: '#c7cdd0', map, vertexColors: true, roughness: .92, envMapIntensity: .6 });
   material.onBeforeCompile = shader => {
     shader.vertexShader = `varying vec3 ridgePosition, ridgeNormal;\n${shader.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\nridgePosition=position; ridgeNormal=normal;');
-    shader.fragmentShader = `varying vec3 ridgePosition, ridgeNormal;\n${shader.fragmentShader}`
+    shader.fragmentShader = `varying vec3 ridgePosition, ridgeNormal;
+      float mountainHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+      float mountainNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mountainHash(i),mountainHash(i+vec2(1,0)),f.x),mix(mountainHash(i+vec2(0,1)),mountainHash(i+vec2(1,1)),f.x),f.y);}
+      ${shader.fragmentShader}`
       .replace('#include <map_fragment>', `
         vec3 weight=pow(abs(normalize(ridgeNormal)),vec3(4.)); weight/=dot(weight,vec3(1.));
-        vec3 p=ridgePosition*.025;
+        vec3 p=ridgePosition*vec3(.016,.026,.016);
+        p+=vec3(mountainNoise(ridgePosition.yz*.007),mountainNoise(ridgePosition.xz*.006),mountainNoise(ridgePosition.xy*.009))*.32;
         vec4 sampledDiffuseColor=texture2D(map,p.yz)*weight.x+texture2D(map,p.xz)*weight.y+texture2D(map,p.xy)*weight.z;
-        diffuseColor*=sampledDiffuseColor;`)
+        vec3 broad=texture2D(map,p.yz*.283+vec2(.31,.71)).rgb*weight.x+texture2D(map,p.xz*.283+vec2(.51,.13)).rgb*weight.y+texture2D(map,p.xy*.283+vec2(.81,.37)).rgb*weight.z;
+        sampledDiffuseColor.rgb=mix(sampledDiffuseColor.rgb,broad,.22);
+        diffuseColor*=sampledDiffuseColor;
+        diffuseColor.rgb*=.79+mountainNoise(ridgePosition.xz*.008)*.42;
+        float slope=normalize(ridgeNormal).y;
+        float altitude=smoothstep(330.,620.,ridgePosition.y);
+        float snow= smoothstep(.32,.65,altitude*.65+mountainNoise(ridgePosition.xz*.027)*.35)*smoothstep(.23,.68,slope);
+        snow=smoothstep(.17,.57,snow);
+        diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(.48,.58,.65),vec3(.80,.84,.86),mountainNoise(ridgePosition.xz*.06)),snow);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         float rockRelief=dot(sampledDiffuseColor.rgb,vec3(.333));
         vec3 rx=dFdx(-vViewPosition), ry=dFdy(-vViewPosition), r1=cross(ry,normal), r2=cross(normal,rx);
         float determinant=dot(rx,r1);
-        normal=normalize(abs(determinant)*normal-sign(determinant)*.12*(dFdx(rockRelief)*r1+dFdy(rockRelief)*r2));`);
+        normal=normalize(abs(determinant)*normal-sign(determinant)*(.2*(1.-snow)+.015)*(dFdx(rockRelief)*r1+dFdy(rockRelief)*r2));`);
   };
-  material.customProgramCacheKey = () => 'autumn-triplanar-stone';
+  material.customProgramCacheKey = () => 'autumn-alpine-snow-stone';
   return material;
 }
 
@@ -73,9 +85,9 @@ export function weatheredPlaster() {
   material.onBeforeCompile = shader => {
     shader.vertexShader = `varying vec3 vWall;\n${shader.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWall=position;');
     shader.fragmentShader = `varying vec3 vWall;\n${shader.fragmentShader}`.replace('#include <color_fragment>', `#include <color_fragment>
-      float fleck=fract(sin(dot(floor(vWall.xz*140.+vWall.y*74.),vec2(12.7,37.3)))*4375.8);
-      float streak=sin(vWall.x*2.1+sin(vWall.z*1.6)*2.)*.5+.5;
-      diffuseColor.rgb*=.89+fleck*.13-streak*.08;
+      float streak=sin(vWall.x*1.3+vWall.z*.9+sin(vWall.y*.7))*.5+.5;
+      float mottling=sin(vWall.x*9.+vWall.z*7.)*sin(vWall.y*6.);
+      diffuseColor.rgb*=.94+mottling*.018-streak*.06;
     `);
   };
   return material;

@@ -12,13 +12,15 @@
 
 The shared startup and mobile-allocation regressions and the original-world tests remain in the suite.
 
+`tests/autumn-realism.test.js` also checks the downhill mill supply, the submerged outlet, actual water mesh contact with the wheel, downstream UV direction, real window openings by raycasting, and the mountain mesh's height, normals and baked shading. `tests/autumn-tree.test.js` checks complete canopy bounds and prevents individual leaves or their reflections from sampling neighbouring atlas cells.
+
 ## Browser checks
 
 Run the built preview, inspect the opening river, then visit each waypoint. Confirm that the bridge passes overhead, the lake orbit reveals different sides of the maple, and the overlook reveals the same village and river. Reverse the timeline to verify spatial continuity. Watch nearby foliage during travel for changes in geometry; only frustum culling and the mirror use optimization.
 
 At 390 × 844 and 844 × 390, load with `?world=autumn&quality=mobile`. Confirm that loading reaches `ready`, the canvas resizes, all eight destinations are available, and Play/Pause, replay and timeline input work. These are responsive-budget checks, not physical iPhone 12 measurements.
 
-Open the world picker using mouse and keyboard. Confirm Original and Autumn are usable links; the active world is indicated; Winter, Spring and Monsoon cannot be selected. Escape closes the dialog and restores focus. Switch both directions and check that title, icon, control colours and destinations belong to the selected world. A `quality=low` or `quality=mobile` setting must survive switching. The default and unknown-world URLs must open Original.
+Open the world picker using mouse and keyboard. Confirm Original, Autumn and Monsoon are usable links on the combined branch; the active world is indicated; Winter and Spring cannot be selected. Escape closes the dialog and restores focus. Switch worlds and check that title, icon, control colours and destinations belong to the selected world. A `quality=low` or `quality=mobile` setting must survive switching. The default and unknown-world URLs must open Original.
 
 Run `npm run test:mobile`. The `fault=asset` case blocks the autumn maple texture; `fault=bundle`, `fault=no-webgl`, `fault=context-loading` and `fault=context-ready` exercise the same real production-bundle recovery flow as the original world. The loader must show recovery rather than remain indefinitely active. Clearing `fault` must permit a clean startup.
 
@@ -38,3 +40,12 @@ These checks used the desktop in-app Chromium browser. They do not establish iPh
 - All 46 tests and the production build pass after refining the maple canopy, island shoreline and mountain material.
 - Autumn reaches `ready` with no console errors. The Mirror lake view shows the updated maple, shoreline stones and sedges, distant ridges and live water reflections.
 - The larger maple's explicit canopy radius is included in camera-clearance tests and frustum bounds. Tree geometry remains unchanged throughout the camera path.
+
+## Development checks on 2026-10-20
+
+- All 58 Node tests pass. These build and inspect geometry on the CPU; they do not construct a WebGL renderer or start a preview server.
+- The production bundle builds. Autumn now imports the small shared foliage helpers independently; the original city's roughly 4 MB vegetation dependency stays in its own lazy-loaded scene bundle.
+- New scenery includes individual maple leaves, modeled snowy mountain ridges, recessed house windows, roof shingles and a connected working millrace. The water surface no longer samples the gravel texture and instead reveals the actual smooth bed.
+- Earlier desktop inspection on October 18 covered the village, lake and mountain material. The subsequent mountain shading, waterfall flow-direction fix and shared-helper extraction have **not** received a fresh browser check.
+- At the user's request, no preview server, browser rendering, screenshot pass or mobile fixture was run for this final development pass. Visual review and physical iPhone 12/Safari validation remain pending.
+- Before merging to main, inspect the wheel at roughly 16.5% of the journey, the Mirror lake mountain, all sanctuary windows and the overhead shallows. Check the water texture runs downhill, foliage remains stable during forward/reverse travel, and the mountain's shaded gullies preserve detail.

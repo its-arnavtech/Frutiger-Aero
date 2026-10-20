@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createDeciduousGeometry } from './tree-geometry.js';
-import { keepLeafGaps, shapeCrown, thinned, limbs } from '../vegetation.js';
+import { keepLeafGaps, thinned, limbs } from '../foliage-tools.js';
 import { waitFor, yieldToBrowser } from '../startup.js';
 import { terrainHeight, riverX, riverWidth, rng, TAU, island } from './layout.js';
 import { forestPlacements } from './planting.js';
@@ -15,15 +15,10 @@ export async function createForest(scene, renderer, signal, branchMap, maps) {
     const kind = variant === 6 ? 3 : variant % 3;
     await yieldToBrowser(signal);
     const { leaves, branches, reflectionIndexCount } = createDeciduousGeometry(7193 + variant * 817, { hero: kind === 3, kind });
-    shapeCrown(leaves, rng(1330 + kind));
-    // The scan already contains shading between leaves. Avoid multiplying
-    // that by the original summer crown's very deep baked occlusion.
-    const shades = leaves.attributes.color;
-    for (let i = 0; i < shades.array.length; i++) shades.array[i] = .60 + .40 * shades.array[i];
     const leafMap = branchMap, barkMap = maps.bark, barkNormal = maps.barkNormal;
     for (const texture of [leafMap, barkMap, barkNormal].filter(Boolean)) { texture.anisotropy = renderer.capabilities.getMaxAnisotropy(); textures.add(texture); }
     foliageTextures.add(leafMap);
-    const foliage = new THREE.MeshStandardMaterial({ map: leafMap, vertexColors: true, alphaTest: .38, roughness: .68, envMapIntensity: .65, side: THREE.DoubleSide });
+    const foliage = new THREE.MeshStandardMaterial({ map: leafMap, vertexColors: true, alphaTest: .32, alphaToCoverage: true, roughness: .54, envMapIntensity: .8, side: THREE.DoubleSide });
     foliage.onBeforeCompile = shader => {
       shader.uniforms.autumnTime = time;
       shader.vertexShader = `uniform float autumnTime;\n${shader.vertexShader}`.replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -34,20 +29,20 @@ export async function createForest(scene, renderer, signal, branchMap, maps) {
       // supplies small natural variations instead of painting the whole leaf orange.
       shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         float relief = dot(sampledDiffuseColor.rgb, vec3(.25,.6,.15));
-        vec2 rise=vec2(dFdx(relief),dFdy(relief))*.025;
+        vec2 rise=vec2(dFdx(relief),dFdy(relief))*.004;
         vec3 sx=dFdx(-vViewPosition), sy=dFdy(-vViewPosition), r1=cross(sy,normal), r2=cross(normal,sx);
         float det=dot(sx,r1);
         normal=normalize(abs(det)*normal-sign(det)*(rise.x*r1+rise.y*r2));`);
       shader.fragmentShader = shader.fragmentShader.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
         float skyward=inverseTransformDirection(normal,viewMatrix).y*.5+.5;
-        reflectedLight.indirectDiffuse+=diffuseColor.rgb*mix(vec3(.22,.19,.08),vec3(.38,.45,.48),skyward)*.55;
+        reflectedLight.indirectDiffuse+=diffuseColor.rgb*mix(vec3(.12,.11,.07),vec3(.22,.28,.31),skyward)*.22;
         #if NUM_DIR_LIGHTS > 0
         float through=pow(saturate(dot(geometryViewDir,-directionalLights[0].direction)),4.);
         float thinLeaf=.65+.35*dot(sampledDiffuseColor.rgb,vec3(.2,.7,.1));
-        reflectedLight.directDiffuse+=diffuseColor.rgb*directionalLights[0].color*through*thinLeaf*.28;
+        reflectedLight.directDiffuse+=diffuseColor.rgb*directionalLights[0].color*through*thinLeaf*.18;
         #endif`);
     };
-    foliage.customProgramCacheKey = () => 'golden-maple-translucency';
+    foliage.customProgramCacheKey = () => 'individual-maple-leaf-translucency';
     const bark = new THREE.MeshStandardMaterial({ map: barkMap, normalMap:barkNormal, normalScale:new THREE.Vector2(.8,.8), roughness:.91, color: '#f4eee2', envMapIntensity:1.1 });
     const selected = placements.filter(p => p.species === kind && (kind === 3 || p.variant === Math.floor(variant / 3)));
     // The full geometry remains unchanged through the flight. Compact only
@@ -66,7 +61,7 @@ export async function createForest(scene, renderer, signal, branchMap, maps) {
     batches.push({ crown, stem, entries, leaves, branches, reflectedLeaves, reflectedBranches });
   }
   await waitFor(Promise.all([...textures].map(t => t.image?.decode?.())), { signal, timeoutMs: 15000, label: 'Unfolding autumn leaves' });
-  for (const texture of foliageTextures) keepLeafGaps(texture, .38);
+  for (const texture of foliageTextures) keepLeafGaps(texture, .32);
   const frustum = new THREE.Frustum(), matrix = new THREE.Matrix4(), mirrored = new THREE.Sphere();
   return {
     count: placements.length,

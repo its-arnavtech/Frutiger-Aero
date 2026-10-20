@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Water } from 'three/addons/objects/Water.js';
 import { terrainHeight } from './layout.js';
 
-export function createRiver(scene, { waterNormals, groundMap, sunDirection, profile, forest, signal }) {
+export function createRiver(scene, { waterNormals, sunDirection, profile, forest, signal }) {
   const water = new Water(new THREE.PlaneGeometry(2300, 2300), {
     textureWidth: profile.mirrorSize, textureHeight: profile.mirrorSize,
     waterNormals, sunDirection, sunColor: '#fff0d7', fog: true,
@@ -12,9 +12,10 @@ export function createRiver(scene, { waterNormals, groundMap, sunDirection, prof
   for (let z=0;z<size;z++) for (let x=0;x<size;x++) heights[z*size+x]=Math.round(THREE.MathUtils.clamp(-terrainHeight(x/(size-1)*820-410,z/(size-1)*1000-580)/5,0,1)*255);
   const depth = new THREE.DataTexture(heights,size,size,THREE.RedFormat);
   depth.minFilter=depth.magFilter=THREE.LinearFilter; depth.needsUpdate=true;
-  Object.assign(water.material.uniforms, { riverDepth:{value:depth}, groundMap:{value:groundMap} });
+  Object.assign(water.material.uniforms, { riverDepth:{value:depth} });
+  water.material.transparent = true; water.material.depthWrite = false;
   water.material.fragmentShader = /* glsl */`
-    uniform sampler2D mirrorSampler,normalSampler,riverDepth,groundMap;
+    uniform sampler2D mirrorSampler,normalSampler,riverDepth;
     uniform float time; uniform vec3 sunColor,sunDirection,eye;
     varying vec4 mirrorCoord,worldPosition;
     #include <common>
@@ -27,32 +28,25 @@ export function createRiver(scene, { waterNormals, groundMap, sunDirection, prof
     void main(){
       vec2 p=worldPosition.xz;
       vec3 toEye=eye-worldPosition.xyz;float range=length(toEye);vec3 view=toEye/range;
-      vec2 broad=texture2D(normalSampler,p*.035+time*vec2(.011,.016)).xy;
-      vec2 small=texture2D(normalSampler,p*.23+time*vec2(-.015,.027)).xy;
-      vec2 fine=texture2D(normalSampler,p*.64+time*vec2(.018,.022)).xy;
-      vec2 slope=((broad-.5)*.36+(small-.5)*.22+(fine-.5)*.085)/(1.+range*.004);
+      vec2 broad=texture2D(normalSampler,p*.025+time*vec2(.004,.012)).xy-.5;
+      vec2 small=texture2D(normalSampler,p*.14+time*vec2(-.009,.02)).xy-.5;
+      vec2 slope=(broad*.06+small*.025)/(1.+range*.003);
       vec3 normal=normalize(vec3(slope.x,1.,slope.y));
       float facing=max(dot(view,normal),0.);
       float fresnel=.025+.975*pow(1.-facing,5.);
-      vec3 mirror=texture2D(mirrorSampler,mirrorCoord.xy/mirrorCoord.w+slope*.055).rgb;
+      vec3 mirror=texture2D(mirrorSampler,mirrorCoord.xy/mirrorCoord.w+slope*.025).rgb;
       float depth=texture2D(riverDepth,(p+vec2(410.,580.))/vec2(820.,1000.)).r*5.;
-      vec3 refracted=refract(-view,normal,.75);
-      float path=max(.05,depth)/max(-refracted.y,.18);
-      vec2 bed=p+refracted.xz*min(path,7.);
-      vec3 gravel=texture2D(groundMap,bed*.32).rgb;
-      float lines=pow(1.-smoothstep(0.,.1,abs(broad.x+small.y-1.)),3.);
       float light=getShadowMask();
-      vec3 transmission=exp(-path*vec3(.38,.18,.13));
-      vec3 body=gravel*(.5+.5*light)*(1.+lines*.35)*transmission+vec3(.035,.095,.10)*(1.-transmission);
-      vec3 color=mix(body,mirror,fresnel);
-      float sun=pow(max(dot(normal,normalize(view+sunDirection)),0.),650.);
-      color+=sunColor*sun*7.*light;
-      float shore=(1.-smoothstep(.05,.24,depth))*smoothstep(0.,.035,depth);
-      color=mix(color,vec3(.54,.61,.57),shore*smoothstep(.42,.65,fine.x)*.25);
-      gl_FragColor=vec4(color,1.);
+      float path=depth/max(facing,.22), absorption=1.-exp(-path*.15);
+      float opacity=clamp(fresnel+absorption*(1.-fresnel),.025,.98);
+      vec3 body=vec3(.035,.105,.088)*(.7+.3*light);
+      vec3 color=(mirror*fresnel+body*absorption*(1.-fresnel))/max(opacity,.001);
+      float sun=pow(max(dot(normal,normalize(view+sunDirection)),0.),450.);
+      color+=sunColor*sun*.75*light;
+      gl_FragColor=vec4(color,opacity);
       #include <fog_fragment>
     }`;
-  water.rotation.x=-Math.PI/2;water.receiveShadow=true;water.name='River with shallow gravel bed';scene.add(water);
+  water.rotation.x=-Math.PI/2;water.receiveShadow=true;water.renderOrder=2;water.name='Clear shallow river over a smooth natural bed';scene.add(water);
   const reflect=water.onBeforeRender;
   water.onBeforeRender=(...args)=>{forest.reflectionBegin();try{reflect(...args);}finally{forest.reflectionEnd();}};
   signal.addEventListener('abort',()=>depth.dispose(),{once:true});

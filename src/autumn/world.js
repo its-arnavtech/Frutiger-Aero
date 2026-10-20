@@ -3,6 +3,7 @@ import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { cameraAt, lookAt, rollAt } from './journey.js';
 import { riverX, rng, TAU } from './layout.js';
 import { createAutumnSky, buildTerrain } from './landscape.js';
+import { AUTUMN_SUN } from './geology.js';
 import { createForest, createLeaves } from './forest.js';
 import { buildVillage } from './village.js';
 import { loadAutumnMaterials } from './materials.js';
@@ -29,8 +30,8 @@ export async function createWorld(canvas, { signal, onStage }) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
   renderer.info.autoReset = false;
-  const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2('#c2ced0', .00125);
-  const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, .2, 2900); camera.layers.enable(1);
+  const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2('#c2ced0', .00024);
+  const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, .2, 4400); camera.layers.enable(1);
   let cinema, environment;
   const resources = new Set();
   signal.addEventListener('abort', () => {
@@ -53,11 +54,11 @@ export async function createWorld(canvas, { signal, onStage }) {
     load('/assets/autumn/maple-leaf.png'),
     load('/assets/environment/kloofendal_48d_partly_cloudy_puresky_4k.jpg'),
     profile.floatTargets ? load('/assets/environment/kloofendal_48d_partly_cloudy_puresky_2k.hdr',new HDRLoader()) : null,
-    load('/assets/autumn/golden-maple-spray.png'),
+    load('/assets/autumn/maple-leaf-atlas.png'),
   ]), { signal, timeoutMs: 30000, label: 'Loading autumn textures' });
   for (const texture of [leafMap, photograph,branchMap]) texture.colorSpace = THREE.SRGBColorSpace;
   waterNormals.wrapS = waterNormals.wrapT = THREE.RepeatWrapping;
-  const sunDirection = new THREE.Vector3(-.58, .48, -.62).normalize();
+  const sunDirection = new THREE.Vector3(...AUTUMN_SUN).normalize();
   createAutumnSky(scene, sunDirection, photograph);
   if (hdr) {
     const pmrem = new THREE.PMREMGenerator(renderer); environment = pmrem.fromEquirectangular(hdr);
@@ -80,7 +81,7 @@ export async function createWorld(canvas, { signal, onStage }) {
   const forest = await createForest(scene, renderer, signal, branchMap, maps);
   const leaves = createLeaves(scene, leafMap);
   await onStage('Lighting the lanterns');
-  const water = createRiver(scene,{waterNormals,groundMap:maps.soil,sunDirection,profile,forest,signal});
+  const water = createRiver(scene,{waterNormals,sunDirection,profile,forest,signal});
   // Reflection skips the falling leaf layer; water moves with the same clock.
   const random = rng(4812), pose = new THREE.Object3D();
   const paper = new THREE.MeshStandardMaterial({ color: '#e6cfaa', emissive: '#ffbe70', emissiveIntensity: .4, roughness: .8 });
@@ -92,8 +93,9 @@ export async function createWorld(canvas, { signal, onStage }) {
   // Small swallows wheel high above the lake, their wings actually moving.
   const birdGeometry = new THREE.BufferGeometry(); birdGeometry.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0, -1.3,.2,.25, -.5,0,.45, 0,0,0, .5,0,.45, 1.3,.2,.25], 3)); birdGeometry.computeVertexNormals();
   const birds = new THREE.InstancedMesh(birdGeometry, new THREE.MeshBasicMaterial({ color: '#514a40', side: THREE.DoubleSide }), 14); birds.frustumCulled = false; scene.add(birds);
-  cinema = createCinema(renderer, scene, camera, { scale: profile.initialRatio / profile.canvasRatio, occlusion: profile.occlusion, bloom: profile.bloom, floatTargets: profile.floatTargets });
-  cinema.grade.exposure.value = 1.08; cinema.grade.saturation.value = 1.03; cinema.grade.contrast.value = .10; cinema.quality.glow = .035;
+  cinema = createCinema(renderer, scene, camera, { scale: profile.initialRatio / profile.canvasRatio, samples: profile.mobile ? 0 : 2, occlusion: profile.occlusion, bloom: profile.bloom, floatTargets: profile.floatTargets });
+  cinema.grade.exposure.value = 1.02; cinema.grade.saturation.value = .97; cinema.grade.contrast.value = .12; cinema.quality.glow = .024;
+  cinema.quality.sharpness = .45;
   let pixelRatio = profile.initialRatio;
   const target = new THREE.Vector3();
   function aim(progress, pointer) {
