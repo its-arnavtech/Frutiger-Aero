@@ -50,8 +50,8 @@ export async function createWorld(canvas, { signal, onStage }) {
     scene.environment = environment.texture; scene.environmentIntensity = .65;
     scene.environmentRotation.y = .597 - Math.atan2(sunDirection.z, sunDirection.x); pmrem.dispose(); hdr.dispose();
   }
-  scene.add(new THREE.HemisphereLight('#d7e9f4', '#707e58', 1.15));
-  const light = new THREE.DirectionalLight('#fff5de', 3.1); light.target.position.set(0, 180, -650);
+  scene.add(new THREE.HemisphereLight('#d7e9f4', '#64704c', .8));
+  const light = new THREE.DirectionalLight('#fff6e8', 2.6); light.target.position.set(0, 180, -650);
   light.position.copy(light.target.position).addScaledVector(sunDirection, 1400);
   light.castShadow = true; light.shadow.mapSize.set(profile.shadowSize, profile.shadowSize);
   Object.assign(light.shadow.camera, { left: -850, right: 850, top: 950, bottom: -850, near: 50, far: 2800 });
@@ -59,9 +59,9 @@ export async function createWorld(canvas, { signal, onStage }) {
   scene.add(light, light.target); signal.addEventListener('abort', () => light.shadow.dispose(), { once: true });
   await onStage('Carving a place for the water');
   const landscape = buildLandscape(scene, maps, profile);
-  const lake = createLake(scene, maps, profile, signal), weather = createWeather(scene, profile);
+  const lake = createLake(scene, maps, profile, signal), weather = createWeather(scene, profile, landscape.surfaceHeight);
   cinema = createCinema(renderer, scene, camera, { scale: profile.initialRatio / profile.canvasRatio, occlusion: profile.occlusion, bloom: profile.bloom, floatTargets: profile.floatTargets });
-  cinema.grade.exposure.value = 1.04; cinema.grade.saturation.value = 1.04; cinema.grade.contrast.value = .12; cinema.quality.glow = .022;
+  cinema.grade.exposure.value = 1.02; cinema.grade.saturation.value = .98; cinema.grade.contrast.value = .10; cinema.quality.glow = .012;
   let pixelRatio = profile.initialRatio;
   function aim(progress, pointer) {
     camera.position.copy(cameraAt(progress)); camera.up.set(0, 1, 0); camera.lookAt(lookAt(progress)); camera.rotateZ(rollAt(progress)); camera.rotateY(-pointer.x * .018); camera.rotateX(pointer.y * .01);

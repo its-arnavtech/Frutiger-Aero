@@ -1,0 +1,21 @@
+Rainmere terrain and material source credits
+
+Matterhorn-region elevation field: Mapzen Terrain Tiles on AWS, zoom 14.
+https://registry.opendata.aws/terrain-tiles/
+Accessed October 21, 2026. Preparation: tools/prepare-monsoon-terrain.py.
+
+Produced using Copernicus data and information funded by the European Union - EU-DEM layers.
+SRTM data courtesy of the U.S. Geological Survey.
+Provider attribution and source terms:
+https://github.com/tilezen/joerd/blob/master/docs/attribution.md
+
+The source is cropped and rescaled to a fictional lake. Snow and vegetation
+are artistic. This is not a geographic reconstruction or navigational data.
+
+Rock Face photographic colour, OpenGL normal, roughness and displacement:
+https://polyhaven.com/a/rock_face
+CC0. The reduced displacement field supplies geometric cliff relief.
+Grass Ground and Coast Sand scans and the Kloofendal sky/HDR: Poly Haven, CC0.
+https://polyhaven.com/license
+
+See docs/monsoon-assets.md for complete asset history and preparation scripts.

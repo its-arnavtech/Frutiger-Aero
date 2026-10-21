@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { cameraAt, lookAt, rollAt, routeLength, places } from '../src/monsoon/journey.js';
 import { terrainHeight, basinRadius, mountainHeight, lake, terrainBounds } from '../src/monsoon/layout.js';
 import { createTerrainGeometry } from '../src/monsoon/landscape.js';
+import { buildShore, createConifer, createShrub } from '../src/monsoon/vegetation.js';
+import { alpineElevations, terrainColumns, terrainRows } from '../src/monsoon/alpine-elevation.js';
+import * as THREE from 'three';
 
 const steps = 6000;
 const flight = Array.from({ length: steps + 1 }, (_, i) => cameraAt(i / steps));
@@ -84,5 +87,53 @@ test('detailed mountain meshes retain valid surfaces, lake depth and flight clea
         assert.ok(Math.abs(surfaceHeight(x, z) - expected) < .001, 'Stones must follow rendered triangles');
       }
     } finally { ground.dispose(); }
+  }
+});
+
+test('the alpine landform retains the real elevation range and asymmetric drainage', () => {
+  assert.equal(alpineElevations.length, terrainColumns * terrainRows);
+  let minimum=Infinity,maximum=-Infinity;
+  for(const value of alpineElevations){assert.ok(Number.isFinite(value));minimum=Math.min(minimum,value);maximum=Math.max(maximum,value);}
+  assert.ok(minimum>1800 && minimum<2400 && maximum>4300 && maximum<4600);
+  let difference=0,samples=0;
+  for(let x=50;x<550;x+=25)for(let z=-1250;z<-550;z+=25){difference+=Math.abs(mountainHeight(-24-x,z)-mountainHeight(-24+x,z));samples++;}
+  assert.ok(difference/samples>35,'Real relief must retain its asymmetric walls and valleys');
+});
+
+test('shore deposits and alpine vegetation stay grounded, bounded and clear of the flight', () => {
+  const scene=new THREE.Scene(),texture=new THREE.Texture();
+  const {ground,surfaceHeight}=createTerrainGeometry({mobile:true});
+  const shore=buildShore(scene,{rock:texture,rockNormal:texture,rockRough:texture},{mobile:true},surfaceHeight);
+  try {
+    assert.ok(shore.stoneCount>1000 && shore.stoneCount<5000);
+    assert.ok(shore.vegetation.length>300 && shore.vegetation.length<=750);
+    assert.equal(scene.children.filter(m=>m.name.startsWith('Glacial deposit')).length,10);
+    for(const tree of shore.vegetation) {
+      assert.ok(Math.abs(surfaceHeight(tree.x,tree.z)-tree.y)<.001);
+      for(let i=0;i<steps;i+=20) {
+        const p=flight[i];
+        if(p.y>tree.y+tree.height+2)continue;
+        assert.ok(Math.hypot(p.x-tree.x,p.z-tree.z)>tree.radius+3,'The camera must clear every planted crown');
+      }
+    }
+    for(const mesh of scene.children) {
+      assert.ok(mesh.count<=mesh.instanceMatrix.count);
+      assert.ok(Number.isFinite(mesh.boundingSphere.radius));
+    }
+  } finally {
+    ground.dispose();const materials=new Set();
+    for(const mesh of scene.children){mesh.geometry.dispose();mesh.dispose();materials.add(mesh.material);}
+    for(const material of materials)material.dispose();texture.dispose();
+  }
+});
+
+test('spruce branches and willow leaves are finite three-dimensional meshes', () => {
+  for(const geometry of [createConifer(72),createShrub(7301)]) {
+    try {
+      for(const value of geometry.attributes.position.array)assert.ok(Number.isFinite(value));
+      assert.equal(geometry.attributes.color.count,geometry.attributes.position.count);
+      assert.ok(geometry.boundingSphere.radius>0 && geometry.boundingSphere.radius<2);
+      assert.ok(geometry.index.count<8000,'Each instanced plant must have a bounded geometry cost');
+    }finally{geometry.dispose();}
   }
 });

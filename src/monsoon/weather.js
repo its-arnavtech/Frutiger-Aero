@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { terrainHeight, rng, streams } from './layout.js';
 
-export function createWeather(scene, profile) {
+export function createWeather(scene, profile, surfaceHeight = terrainHeight) {
   const clock = { value: 0 }, centre = { value: new THREE.Vector3() }, random = rng(3921);
   const count = profile.low ? 600 : profile.mobile ? 1000 : 2000;
   const geometry = new THREE.InstancedBufferGeometry().copy(new THREE.PlaneGeometry(1, 1));
@@ -48,11 +48,14 @@ export function createWeather(scene, profile) {
   for (const stream of streams) {
     const vertices = [], uvs = [], indices = [];
     const dx = stream.to[0] - stream.from[0], dz = stream.to[1] - stream.from[1], length = Math.hypot(dx, dz), nx = -dz / length, nz = dx / length;
-    for (let i = 0; i <= 110; i++) {
-      const t = i / 110, x = stream.from[0] + dx * t + Math.sin(t * 9) * .8, z = stream.from[1] + dz * t;
-      const y = Math.max(.12, terrainHeight(x, z) + .35), width = stream.width * (.5 + t * .5);
-      for (const side of [-1, 1]) { vertices.push(x + nx * width * side, y, z + nz * width * side); uvs.push((side + 1) / 2, t); }
-      if (i < 110) { const a = i * 2; indices.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+    for (let i = 0; i <= 240; i++) {
+      const t = i / 240, x = stream.from[0] + dx * t + Math.sin(t * 9) * .8, z = stream.from[1] + dz * t;
+      const width = stream.width * (.5 + t * .5);
+      for (const side of [-1, 1]) {
+        const sx=x+nx*width*side,sz=z+nz*width*side;
+        vertices.push(sx,Math.max(.12,surfaceHeight(sx,sz)+.14),sz);uvs.push((side+1)/2,t);
+      }
+      if (i < 240) { const a = i * 2; indices.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); g.setIndex(indices); g.computeVertexNormals();
     const fall = new THREE.Mesh(g, cascadeMaterial); fall.name = 'Snowmelt cascade'; scene.add(fall);

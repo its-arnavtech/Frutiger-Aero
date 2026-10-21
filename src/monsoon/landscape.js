@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { terrainHeight, basinRadius, terrainBounds, rng, noise, smooth, TAU } from './layout.js';
+import { terrainHeight, terrainBounds, smooth } from './layout.js';
 import { cirqueMaterial } from './materials.js';
+import { buildShore } from './vegetation.js';
 
 export function createTerrainGeometry(profile) {
   const { width, depth, centerZ } = terrainBounds;
@@ -54,35 +55,7 @@ export function buildLandscape(scene, maps, profile) {
   const { ground, surfaceHeight } = createTerrainGeometry(profile);
   const terrain = new THREE.Mesh(ground, cirqueMaterial(maps)); terrain.name = 'Eroded alpine buttresses, snow gullies and a continuous lake bed'; terrain.castShadow = terrain.receiveShadow = true; scene.add(terrain);
 
-  const random = rng(90462), pose = new THREE.Object3D();
-  const geometry = new THREE.IcosahedronGeometry(1, 1), stone = geometry.attributes.position;
-  for (let i = 0; i < stone.count; i++) {
-    const x = stone.getX(i), y = stone.getY(i), z = stone.getZ(i), d = .85 + noise(x * 3, z * 3) * .3;
-    stone.setXYZ(i, x * d, y * d * .65, z * d);
-  }
-  geometry.computeVertexNormals();
-  const material = new THREE.MeshStandardMaterial({ map: maps.rock, normalMap: maps.normal, normalScale: new THREE.Vector2(.3, .3), roughness: .51, color: '#e5e4d6' });
-  const stones = new THREE.InstancedMesh(geometry, material, 3300), colors = ['#879294','#706c5b','#8d8d7c','#a9aba2','#545f60','#929582'];
-  const footprints = []; let count = 0;
-  // Low, irregular stones are physical geometry, including those visible under water.
-  for (let i = 0; i < 5200 && count < 3300; i++) {
-    const x = (random() - .5) * 660, z = -520 + random() * 890, r = basinRadius(x, z), y = surfaceHeight(x, z);
-    if (r < .72 || r > 1.15 || y > 22) continue;
-    const s = r < .98 ? .32 + random() * 1.3 : .6 + random() ** 3 * 4.5;
-    pose.position.set(x, y - s * .45, z); pose.rotation.set(random() * .4, random() * TAU, random() * .35); pose.scale.set(s * (1 + random() * .5), s, s); pose.updateMatrix();
-    stones.setMatrixAt(count, pose.matrix); stones.setColorAt(count, new THREE.Color(colors[count % colors.length]));
-    footprints.push({ x, y, z, radius: s * 1.6 }); count++;
-  }
-  // A dense pebble shelf fills the opening shot, with no artificial platform.
-  for (let i = 0; i < 1000 && count < 3300; i++) {
-    const x = (random() - .5) * 140, z = 235 + random() * 100, y = surfaceHeight(x, z);
-    if (y > 3.5) continue;
-    const s = .22 + random() * .72;
-    pose.position.set(x, y + s * .12, z); pose.rotation.set(random() * .3, random() * TAU, 0); pose.scale.set(s * 1.5, s, s); pose.updateMatrix();
-    stones.setMatrixAt(count, pose.matrix); stones.setColorAt(count++, new THREE.Color(colors[i % colors.length]));
-  }
-  stones.count = count; stones.computeBoundingSphere(); stones.receiveShadow = true; stones.name = 'Rain-polished shoreline stones'; scene.add(stones);
-  return { stoneCount: count, footprints };
+  return { ...buildShore(scene, maps, profile, surfaceHeight), surfaceHeight };
 }
 
 export function createCloudbreakSky(scene, photograph, sunDirection) {

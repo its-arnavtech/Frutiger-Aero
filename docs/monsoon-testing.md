@@ -24,6 +24,14 @@ Desktop phone-size checks are not physical iPhone 12 / Safari measurements.
 
 ## Checked on 2026-10-21
 
+### Realism revision
+
+- All 67 automated tests pass and the production build succeeds. New checks cover the Matterhorn elevation range, asymmetric terrain, finite spruce/willow meshes, bounded deposit and plant counts, grounded planting and clearance from every spruce crown.
+- The opening and close cascade views were inspected for scanned cliff detail, vegetation coverage, needle colour, terrain intersections and shoreline deposits. The scene reports no console errors. The existing FXAA shader may emit driver warnings about derivatives; it compiles and renders.
+- The production bundle reaches `ready` at 390 × 844 with the mobile budget and simulated 3× density. A deliberately failed `rock_face_diff_2k.jpg` request opens retry, lighter-rendering and world-selection controls. A clean landscape reload is checked separately. These checks use desktop emulation, not a physical phone.
+
+### Earlier mountain detail
+
 - All 64 automated tests pass and the production build succeeds. The new actual-mesh regression covers upward unit normals, bounded desktop/phone/recovery geometry, interpolated triangle heights, underwater basin depth and camera clearance at all three quality settings.
 - The opening lake and close cascade destination were inspected in the browser. The eroded mountain, meadow transitions, summit snow and reflection render without shader or console errors.
 - The actual production bundle reaches `ready` at 390 × 844 with the mobile budget and simulated 3× pixel density. The world picker exposes Original, Autumn and Monsoon while retaining the mobile setting. This is desktop browser emulation, not physical-device GPU validation.

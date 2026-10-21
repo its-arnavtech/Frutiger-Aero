@@ -1,3 +1,6 @@
+import { alpineElevations, terrainColumns, terrainRows } from './alpine-elevation.js';
+import { rockRelief } from './rock-relief.js';
+
 export const TAU = Math.PI * 2;
 export const clamp = (n, a = 0, b = 1) => Math.max(a, Math.min(b, n));
 export const smooth = (a, b, n) => { const t = clamp((n - a) / (b - a)); return t * t * (3 - 2 * t); };
@@ -12,46 +15,38 @@ export const terrainBounds = { width: 2400, depth: 2600, centerZ: -400 };
 export const lake = { x: 0, z: -80, radiusX: 285, radiusZ: 405, depth: 24 };
 export function basinRadius(x, z) {
   const angle = Math.atan2((z - lake.z) / lake.radiusZ, x / lake.radiusX);
-  return Math.hypot(x / lake.radiusX, (z - lake.z) / lake.radiusZ) / (1 + .035 * Math.sin(angle * 5 + .4) + .018 * Math.sin(angle * 11));
+  return Math.hypot(x / lake.radiusX, (z - lake.z) / lake.radiusZ) / (1 + .035 * Math.sin(angle * 5 + .4) + .018 * Math.sin(angle * 11) + (noise(x * .022, z * .022) - .5) * .035);
 }
 // A single massif beyond the far shore. Its compact footprint cannot grow
 // into enclosing walls along the sides of the lake.
 export function mountainHeight(x, z) {
-  const peak = (cx, cz, width, depth, height) => {
-    const dx = (x - cx) / width, dz = (z - cz) / depth, r = Math.hypot(dx, dz);
-    const envelope = Math.max(0, 1 - r);
-    if (!envelope) return 0;
-    // Drainage follows the fall line. Warped, nested channels divide each
-    // buttress into smaller ribs instead of rounding the whole face with noise.
-    const a = Math.atan2(dz, dx), warp = (noise(x * .011, z * .011) - .5);
-    const trunk = Math.abs(Math.sin(a * 7 + warp * 3.5 + Math.sin(a * 3) * .7));
-    const branch = Math.abs(Math.sin(a * 19 + warp * 4.2 + r * 8));
-    const ravine = trunk ** 1.7 * (.14 + branch * .075) * smooth(0, .22, r);
-    return envelope ** 1.06 * height * (1 - ravine);
-  };
-  const mass = Math.max(
-    peak(-24, -890, 600, 440, 690),
-    peak(-215, -854, 330, 380, 440),
-    peak(-117, -938, 380, 410, 520),
-    peak(164, -934, 350, 420, 495),
-    peak(304, -995, 310, 410, 385),
-  );
-  const ridge = (fx, fz, offset) => 1 - Math.abs(noise(x * fx + offset, z * fz - offset) * 2 - 1);
-  const erosion = (ridge(.021, .018, 7) - .63) * 42
-    + (ridge(.057, .049, 23) - .63) * 25
-    + (ridge(.14, .12, 41) - .63) * 9
-    + (noise(x * .32, z * .29) - .5) * 1.8;
-  return Math.max(0, mass + erosion * smooth(0, 120, mass));
+  // Surveyed glacial walls, saddles and drainage replace the radial cones.
+  // This is a scaled crop of the locally bundled Swiss alpine DEM; its real
+  // asymmetric relief is retained rather than multiplied by synthetic ribs.
+  const border = (1 - smooth(630, 800, Math.abs(x)))
+    * smooth(-1600, -1460, z) * (1 - smooth(-540, -445, z));
+  if (!border) return 0;
+  const column = clamp((x + 800) / 1600, 0, 1) * (terrainColumns - 1);
+  const row = clamp((z + 1600) / 1160, 0, 1) * (terrainRows - 1);
+  const left = Math.min(terrainColumns - 2, Math.floor(column)), top = Math.min(terrainRows - 2, Math.floor(row));
+  const u = column - left, v = row - top, i = top * terrainColumns + left;
+  const elevation = (alpineElevations[i] * (1-u) + alpineElevations[i+1] * u) * (1-v)
+    + (alpineElevations[i+terrainColumns] * (1-u) + alpineElevations[i+terrainColumns+1] * u) * v;
+  const mass = Math.max(0, elevation - 2600) * .4;
+  const warp = noise(x*.017,z*.013)*.3;
+  const fractures = (rockRelief(x*.014+warp,z*.018+warp)-.5)*10
+    + (noise(x * .075, z * .065) - .5) * 4 + (noise(x * .23, z * .21) - .5) * 1.2;
+  return Math.max(0, mass + fractures * smooth(70, 230, mass)) * border;
 }
 // The same continuous surface drives the mesh, lake depth and camera checks.
 export function terrainHeight(x, z) {
-  const r = basinRadius(x, z), shore = smooth(.99, 1.22, r);
+  const r = basinRadius(x, z), shore = smooth(1.0, 1.38, r);
   const bed = .55 - lake.depth * (1 - smooth(.48, 1.015, r));
-  const foothills = (9 + noise(x * .007, z * .007) * 31 + noise(x * .023, z * .023) * 6) * shore;
-  const detail = (noise(x * .16, z * .16) - .5) * 2.2 * smooth(.92, 1.17, r);
+  const foothills = (3 + noise(x * .007, z * .007) * 19 + noise(x * .023, z * .023) * 4) * shore;
+  const detail = (noise(x * .16, z * .16) - .5) * .7 * smooth(.95, 1.17, r);
   return bed + foothills + mountainHeight(x, z) + detail;
 }
 export const streams = [
-  { from: [-95, -700], to: [-78, -465], width: 2.7 },
-  { from: [130, -780], to: [112, -464], width: 1.5 },
+  { from: [-95, -850], to: [-78, -465], width: 1.1 },
+  { from: [130, -780], to: [112, -464], width: .65 },
 ];

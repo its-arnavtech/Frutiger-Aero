@@ -2,6 +2,18 @@
 
 The user's photograph originally guided the alpine stone, snow and clear water. The October 18 revision opens this geography into a broad lake with one mountain ahead, low green side hills and a blue, cloud-filled sky. The reference photograph is not shipped or used as a background. The world contains no people, characters or human silhouettes. The mountain, hills, lake, stones, cascades and precipitation belong to the live 3D scene.
 
+## Current realistic terrain and surfaces
+
+The later October 21 revision replaces the radial, fluted mountain entirely. `src/monsoon/alpine-elevation.js` contains a 513 × 385 crop of Mapzen Terrarium elevations around the Matterhorn, centered at 7.6586 E, 45.9763 N. Zoom-14 tiles are decoded and resampled by `tools/prepare-monsoon-terrain.py`. Six source metres correspond to one horizontal scene metre; height is artistically rescaled and the boundary blends into the fictional lake. This is an artistic landscape, not a geographical reconstruction or navigational dataset.
+
+Terrain source: [Mapzen Terrain Tiles on AWS](https://registry.opendata.aws/terrain-tiles/), retrieved October 21, 2026. **Produced using Copernicus data and information funded by the European Union - EU-DEM layers. SRTM data courtesy of the U.S. Geological Survey.** [Provider source credits and terms](https://github.com/tilezen/joerd/blob/master/docs/attribution.md). Downloaded tiles and exact source URLs are cached in ignored `artifacts/monsoon-dem/provenance.json`; the resulting elevation field is bundled locally.
+
+The [Rock Face scan from Poly Haven](https://polyhaven.com/a/rock_face), under CC0, supplies `rock_face_diff_2k.jpg`, `rock_face_nor_gl_2k.jpg` and `rock_face_rough_1k.jpg` in `public/assets/monsoon/`. `tools/prepare-monsoon-relief.py` reduces its displacement map into `src/monsoon/rock-relief.js` for live geometric relief. Warped projection combines broad cliff formations with finer mineral grain; the scanned normals affect actual lighting. Existing CC0 Grass Ground and Coast Sand scans supply meadow, sand and underwater-bed colour and normal maps.
+
+Ten fractured stone variants form boulder and gravel deposits with smaller chips around larger rocks. Wet stone, moss and lichen shading use the scanned rock maps. Instanced curved grass, individually folded willow leaves and open, three-dimensional spruce branch whorls add actual vegetation. Greenery follows altitude and slope; plant counts and terrain spacing are bounded for phone and recovery profiles. Lake reflections contain the same mountain, trees and boulders. Wind ripples soften the reflection.
+
+The generated maps recorded below remain historical assets in the repository; the current Monsoon scene no longer loads them.
+
 ## Generated rock
 
 - Saved asset: `public/assets/monsoon/wet-slate.png`.
@@ -24,8 +36,8 @@ The user's photograph originally guided the alpine stone, snow and clear water. 
 
 The Marble Cliff normal map, Grass Ground scan and Kloofendal 48d Partly Cloudy PureSky photograph/HDR are CC0 Poly Haven assets already included in the project. The full panoramic sky rotates very slowly on a camera-centered sphere; its HDR companion lights materials. The water normal texture is distributed with Three.js under its included license. See `docs/assets.md` and `public/assets/materials/THREE-LICENSE.txt`.
 
-Mountain ridges, moving rain, rain rings, snow coverage, waterfalls and mist use procedural geometry and shaders. Optional rain sound is synthesized locally. No external API calls occur at runtime.
+Rain, rain rings, vegetation, snow coverage, waterfalls and mist use procedural geometry and shaders. Optional rain sound is synthesized locally. No external API calls occur at runtime.
 
-## October 21 mountain detail
+## Earlier October 21 mountain detail (superseded)
 
 The additional user references guide fractured alpine faces, green lower slopes and snow-filled summit channels. Both remain visual references; neither image is used as a backdrop or shipped as a new texture. The live terrain now uses warped branching drainage, several scales of ridged fracture relief, and a continuous nonuniform grid with two-metre spacing around the desktop mountain (four metres on phones, six in recovery mode). Broad slope and local concavity are sampled from this same surface to place snow, meadow and cavity shading. Tilted, warped sediment bands supplement the existing rock maps. Shore stones and cascades still follow the shared terrain; the reflection renders the same mountain geometry.

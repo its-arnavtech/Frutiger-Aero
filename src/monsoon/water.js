@@ -32,7 +32,7 @@ export function createLake(scene, maps, profile, signal) {
       vec2 broad=texture2D(normalSampler,p*.025+time*vec2(.004,.007)).xy-.5;
       vec2 fine=texture2D(normalSampler,p*.27+time*vec2(-.014,.008)).xy-.5;
       vec2 ring=rainRing(p*.72)+rainRing(p*.72+vec2(.5,.7));
-      vec2 slope=(broad*.07+fine*.028+ring*.009)/(1.+range*.0018);
+      vec2 slope=(broad*.13+fine*.045+ring*.009)/(1.+range*.0018);
       vec3 normal=normalize(vec3(slope.x,1.,slope.y));float facing=max(dot(view,normal),0.);
       float fresnel=.025+.975*pow(1.-facing,5.);
       vec3 reflection=texture2D(mirrorSampler,mirrorCoord.xy/mirrorCoord.w+slope*.025).rgb;
