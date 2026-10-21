@@ -10,12 +10,12 @@ export async function loadMaterials(load) {
 }
 
 export function cirqueMaterial(maps) {
-  const material = new THREE.MeshStandardMaterial({ map: maps.rock, roughness: .83, color: '#e0dfd6', envMapIntensity: .75 });
+  const material = new THREE.MeshStandardMaterial({ map: maps.rock, vertexColors: true, roughness: .83, color: '#e0dfd6', envMapIntensity: .65 });
   material.onBeforeCompile = shader => {
     shader.uniforms.pebbleMap = { value: maps.pebbles };
     shader.uniforms.grassMap = { value: maps.grass };
-    shader.vertexShader = `varying vec3 vCliff, vSlope;\n${shader.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\nvCliff=position; vSlope=normal;');
-    shader.fragmentShader = `varying vec3 vCliff, vSlope; uniform sampler2D pebbleMap, grassMap;
+    shader.vertexShader = `attribute vec2 mountainHabitat; varying vec2 vHabitat; varying vec3 vCliff, vSlope;\n${shader.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\nvCliff=position; vSlope=normal; vHabitat=mountainHabitat;');
+    shader.fragmentShader = `varying vec2 vHabitat; varying vec3 vCliff, vSlope; uniform sampler2D pebbleMap, grassMap;
       float nHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       float nValue(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(nHash(i),nHash(i+vec2(1,0)),f.x),mix(nHash(i+vec2(0,1)),nHash(i+vec2(1,1)),f.x),f.y);}
       ${shader.fragmentShader}`
@@ -30,16 +30,21 @@ export function cirqueMaterial(maps) {
         sampledDiffuseColor=mix(sampledDiffuseColor,texture2D(pebbleMap,vCliff.xz*.28),sediment);
         vec3 macro=texture2D(map,p.xz*.16).rgb;
         diffuseColor*=sampledDiffuseColor;
-        float seam=.5+.5*sin(vCliff.y*.46+vCliff.x*.18+nValue(vCliff.xz*.02)*5.);
-        diffuseColor.rgb*=mix(.90,1.28,nValue(vCliff.xz*.014))+seam*.10;
+        float bedding=vCliff.y*.19+vCliff.x*.065+nValue(vCliff.xz*.009)*9.;
+        float seam=smoothstep(.78,.96,.5+.5*sin(bedding));
+        diffuseColor.rgb*=mix(.86,1.18,nValue(vCliff.xz*.014))-seam*.10;
         diffuseColor.rgb*=mix(vec3(.85,.89,.89),vec3(1.22,1.15,1.05),macro);
         float slope=normalize(vSlope).y;
-        float fields=nValue(vCliff.xz*.018)+nValue(vCliff.xz*.075)*.25;
-        float altitude=smoothstep(280.,550.,vCliff.y);
-        float snow=smoothstep(.49,.63,fields*.45+altitude*.55)*smoothstep(.18,.65,slope);
-        snow=smoothstep(.22,.56,snow+nValue(vCliff.xz*.35)*.04);
-        vec3 ice=mix(vec3(.62,.74,.81),vec3(.91,.93,.94),nValue(vCliff.xz*.12));
-        float meadow=smoothstep(.45,.84,slope)*(1.-smoothstep(75.,200.,vCliff.y))*smoothstep(1.2,6.,vCliff.y);
+        // Broad slope and concavity survive fine rock relief: snow stays in
+        // sheltered couloirs while protruding ribs remain exposed grey stone.
+        float fields=nValue(vCliff.xz*.022)*.7+nValue(vCliff.xz*.083)*.3;
+        float snowline=420.+(fields-.5)*75.-vHabitat.y*85.;
+        float accumulation=smoothstep(snowline-18.,snowline+24.,vCliff.y);
+        float retention=smoothstep(.16,.56,vHabitat.x+vHabitat.y*.2);
+        float snow=accumulation*retention;
+        snow=smoothstep(.24,.70,snow+(nValue(vCliff.xz*.42)-.5)*.065);
+        vec3 ice=mix(vec3(.73,.82,.88),vec3(.96,.975,.98),nValue(vCliff.xz*.16));
+        float meadow=smoothstep(.49,.85,vHabitat.x)*(1.-smoothstep(95.,260.,vCliff.y))*smoothstep(1.2,6.,vCliff.y);
         vec3 grass=texture2D(grassMap,vCliff.xz*.16).rgb*vec3(.65,.83,.53);
         grass*=.8+nValue(vCliff.xz*.025)*.42;
         diffuseColor.rgb=mix(diffuseColor.rgb,grass,meadow*.94);
@@ -52,6 +57,6 @@ export function cirqueMaterial(maps) {
         vec3 dx=dFdx(-vViewPosition),dy=dFdy(-vViewPosition),r1=cross(dy,normal),r2=cross(normal,dx);float det=dot(dx,r1);
         normal=normalize(abs(det)*normal-sign(det)*(.22*(1.-snow)+.015)*(dFdx(detail)*r1+dFdy(detail)*r2));`);
   };
-  material.customProgramCacheKey = () => 'monsoon-open-massif-v2';
+  material.customProgramCacheKey = () => 'monsoon-eroded-massif-v3';
   return material;
 }

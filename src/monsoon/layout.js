@@ -18,10 +18,16 @@ export function basinRadius(x, z) {
 // into enclosing walls along the sides of the lake.
 export function mountainHeight(x, z) {
   const peak = (cx, cz, width, depth, height) => {
-    const dx = (x - cx) / width, dz = (z - cz) / depth, r = Math.hypot(dx, dz), a = Math.atan2(dz, dx);
+    const dx = (x - cx) / width, dz = (z - cz) / depth, r = Math.hypot(dx, dz);
     const envelope = Math.max(0, 1 - r);
-    const spur = 1 - .18 * Math.abs(Math.sin(a * 5 + noise(x * .008, z * .008) * 2)) * smooth(0, .35, r);
-    return envelope ** 1.13 * height * spur;
+    if (!envelope) return 0;
+    // Drainage follows the fall line. Warped, nested channels divide each
+    // buttress into smaller ribs instead of rounding the whole face with noise.
+    const a = Math.atan2(dz, dx), warp = (noise(x * .011, z * .011) - .5);
+    const trunk = Math.abs(Math.sin(a * 7 + warp * 3.5 + Math.sin(a * 3) * .7));
+    const branch = Math.abs(Math.sin(a * 19 + warp * 4.2 + r * 8));
+    const ravine = trunk ** 1.7 * (.14 + branch * .075) * smooth(0, .22, r);
+    return envelope ** 1.06 * height * (1 - ravine);
   };
   const mass = Math.max(
     peak(-24, -890, 600, 440, 690),
@@ -30,8 +36,12 @@ export function mountainHeight(x, z) {
     peak(164, -934, 350, 420, 495),
     peak(304, -995, 310, 410, 385),
   );
-  const erosion = (noise(x * .014, z * .014) - .5) * 110 + (noise(x * .043, z * .043) - .5) * 42 + (noise(x * .12, z * .12) - .5) * 10;
-  return Math.max(0, mass + erosion * smooth(0, 110, mass));
+  const ridge = (fx, fz, offset) => 1 - Math.abs(noise(x * fx + offset, z * fz - offset) * 2 - 1);
+  const erosion = (ridge(.021, .018, 7) - .63) * 42
+    + (ridge(.057, .049, 23) - .63) * 25
+    + (ridge(.14, .12, 41) - .63) * 9
+    + (noise(x * .32, z * .29) - .5) * 1.8;
+  return Math.max(0, mass + erosion * smooth(0, 120, mass));
 }
 // The same continuous surface drives the mesh, lake depth and camera checks.
 export function terrainHeight(x, z) {

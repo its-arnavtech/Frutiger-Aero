@@ -25,3 +25,7 @@ The user's photograph originally guided the alpine stone, snow and clear water. 
 The Marble Cliff normal map, Grass Ground scan and Kloofendal 48d Partly Cloudy PureSky photograph/HDR are CC0 Poly Haven assets already included in the project. The full panoramic sky rotates very slowly on a camera-centered sphere; its HDR companion lights materials. The water normal texture is distributed with Three.js under its included license. See `docs/assets.md` and `public/assets/materials/THREE-LICENSE.txt`.
 
 Mountain ridges, moving rain, rain rings, snow coverage, waterfalls and mist use procedural geometry and shaders. Optional rain sound is synthesized locally. No external API calls occur at runtime.
+
+## October 21 mountain detail
+
+The additional user references guide fractured alpine faces, green lower slopes and snow-filled summit channels. Both remain visual references; neither image is used as a backdrop or shipped as a new texture. The live terrain now uses warped branching drainage, several scales of ridged fracture relief, and a continuous nonuniform grid with two-metre spacing around the desktop mountain (four metres on phones, six in recovery mode). Broad slope and local concavity are sampled from this same surface to place snow, meadow and cavity shading. Tilted, warped sediment bands supplement the existing rock maps. Shore stones and cascades still follow the shared terrain; the reflection renders the same mountain geometry.

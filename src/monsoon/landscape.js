@@ -1,23 +1,58 @@
 import * as THREE from 'three';
-import { terrainHeight, basinRadius, terrainBounds, rng, noise, TAU } from './layout.js';
+import { terrainHeight, basinRadius, terrainBounds, rng, noise, smooth, TAU } from './layout.js';
 import { cirqueMaterial } from './materials.js';
 
-export function buildLandscape(scene, maps, profile) {
-  const { width, depth, centerZ } = terrainBounds, nx = profile.mobile ? 400 : 640, nz = profile.mobile ? 440 : 700;
-  const ground = new THREE.PlaneGeometry(width, depth, nx, nz); ground.rotateX(-Math.PI / 2); ground.translate(0, 0, centerZ);
+export function createTerrainGeometry(profile) {
+  const { width, depth, centerZ } = terrainBounds;
+  // Spend the existing vertex budget on the mountain rather than the flat
+  // outer apron. This is one continuous mesh, including the underwater bed.
+  const axis = (start, end, fineStart, fineEnd) => {
+    const values = [start], fine = profile.low ? 6 : profile.mobile ? 4 : 2;
+    for (let value = start; value < end;) {
+      const step = value >= fineStart && value < fineEnd ? fine : 6;
+      value = Math.min(end, value + step); values.push(value);
+    }
+    return values;
+  };
+  const xs = axis(-width / 2, width / 2, -640, 640);
+  const zs = axis(centerZ - depth / 2, centerZ + depth / 2, -1350, -450);
+  const nx = xs.length - 1, nz = zs.length - 1;
+  const ground = new THREE.PlaneGeometry(width, depth, nx, nz);
   const positions = ground.attributes.position;
-  for (let i = 0; i < positions.count; i++) positions.setY(i, terrainHeight(positions.getX(i), positions.getZ(i)));
+  for (let row = 0; row <= nz; row++) for (let column = 0; column <= nx; column++) {
+    const x = xs[column], z = zs[row];
+    positions.setXYZ(row * (nx + 1) + column, x, terrainHeight(x, z), z);
+  }
   ground.computeVertexNormals(); ground.computeBoundingSphere();
-  const terrain = new THREE.Mesh(ground, cirqueMaterial(maps)); terrain.name = 'One far-shore massif, low green hills and a continuous lake bed'; terrain.castShadow = terrain.receiveShadow = true; scene.add(terrain);
-
-  // Sample the actual rendered triangles so small stones sit in the ground,
-  // even where the analytic cliff has more detail than the mesh spacing.
-  function surfaceHeight(x, z) {
-    const gx = (x + width / 2) / width * nx, gz = (z - centerZ + depth / 2) / depth * nz;
-    const ix = Math.floor(gx), iz = Math.floor(gz), u = gx - ix, v = gz - iz, a = iz * (nx + 1) + ix;
+  const cell = (axis, value) => {
+    let low = 0, high = axis.length - 1;
+    while (high - low > 1) { const mid = (low + high) >> 1; if (axis[mid] <= value) low = mid; else high = mid; }
+    return low;
+  };
+  const surfaceHeight = (x, z) => {
+    const ix = cell(xs, x), iz = cell(zs, z), u = (x - xs[ix]) / (xs[ix + 1] - xs[ix]), v = (z - zs[iz]) / (zs[iz + 1] - zs[iz]), a = iz * (nx + 1) + ix;
     const h00 = positions.getY(a), h10 = positions.getY(a + 1), h01 = positions.getY(a + nx + 1), h11 = positions.getY(a + nx + 2);
     return u + v < 1 ? h00 + (h10 - h00) * u + (h01 - h00) * v : h11 + (h01 - h11) * (1 - u) + (h10 - h11) * (1 - v);
+  };
+  const habitat = new Float32Array(positions.count * 2), colors = new Float32Array(positions.count * 3);
+  for (let i = 0; i < positions.count; i++) {
+    const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
+    if (y < 1 || Math.abs(x) > 1170 || z < -1670 || z > 870) { habitat.set([1, 0], i * 2); colors.set([1, 1, 1], i * 3); continue; }
+    const h = (dx, dz) => surfaceHeight(x + dx, z + dz);
+    const hollow = (h(-12, 0) + h(12, 0) + h(0, -12) + h(0, 12)) * .25 - y;
+    const slope = 1 / Math.hypot((h(10, 0) - h(-10, 0)) / 20, 1, (h(0, 10) - h(0, -10)) / 20);
+    habitat.set([slope, THREE.MathUtils.clamp(hollow / 7, -1, 1)], i * 2);
+    const shelter = smooth(.3, 7, hollow) * .19, shade = 1 - shelter;
+    colors.set([shade * (1 - shelter * .12), shade, Math.min(1, shade * (1 + shelter * .09))], i * 3);
   }
+  ground.setAttribute('mountainHabitat', new THREE.BufferAttribute(habitat, 2));
+  ground.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return { ground, surfaceHeight };
+}
+
+export function buildLandscape(scene, maps, profile) {
+  const { ground, surfaceHeight } = createTerrainGeometry(profile);
+  const terrain = new THREE.Mesh(ground, cirqueMaterial(maps)); terrain.name = 'Eroded alpine buttresses, snow gullies and a continuous lake bed'; terrain.castShadow = terrain.receiveShadow = true; scene.add(terrain);
 
   const random = rng(90462), pose = new THREE.Object3D();
   const geometry = new THREE.IcosahedronGeometry(1, 1), stone = geometry.attributes.position;

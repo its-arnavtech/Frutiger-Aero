@@ -22,6 +22,12 @@ On the development machine, Chrome was configured for the power-saving GPU. The 
 
 Desktop phone-size checks are not physical iPhone 12 / Safari measurements.
 
+## Checked on 2026-10-21
+
+- All 64 automated tests pass and the production build succeeds. The new actual-mesh regression covers upward unit normals, bounded desktop/phone/recovery geometry, interpolated triangle heights, underwater basin depth and camera clearance at all three quality settings.
+- The opening lake and close cascade destination were inspected in the browser. The eroded mountain, meadow transitions, summit snow and reflection render without shader or console errors.
+- The actual production bundle reaches `ready` at 390 × 844 with the mobile budget and simulated 3× pixel density. The world picker exposes Original, Autumn and Monsoon while retaining the mobile setting. This is desktop browser emulation, not physical-device GPU validation.
+
 ## Checked on 2026-10-18
 
 - All 52 automated tests pass; the production build succeeds. The new layout test prevents enclosing side mountains. The camera clears the expanded terrain throughout its continuous, reversible route.

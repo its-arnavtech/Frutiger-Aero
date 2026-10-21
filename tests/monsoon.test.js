@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cameraAt, lookAt, rollAt, routeLength, places } from '../src/monsoon/journey.js';
 import { terrainHeight, basinRadius, mountainHeight, lake, terrainBounds } from '../src/monsoon/layout.js';
+import { createTerrainGeometry } from '../src/monsoon/landscape.js';
 
 const steps = 6000;
 const flight = Array.from({ length: steps + 1 }, (_, i) => cameraAt(i / steps));
@@ -49,5 +50,39 @@ test('the high mountain is confined to the far shore, with only small hills besi
   for (const p of flight) {
     assert.ok(Math.abs(p.x) < terrainBounds.width / 2);
     assert.ok(Math.abs(p.z - terrainBounds.centerZ) < terrainBounds.depth / 2);
+  }
+});
+
+test('detailed mountain meshes retain valid surfaces, lake depth and flight clearance at every quality', () => {
+  let previousVertices = Infinity;
+  for (const profile of [{}, { mobile: true }, { mobile: true, low: true }]) {
+    const { ground, surfaceHeight } = createTerrainGeometry(profile);
+    try {
+      const { position, normal, mountainHabitat, color } = ground.attributes;
+      assert.ok(position.count < previousVertices && position.count < 650000, 'Quality must bound the mesh allocation');
+      previousVertices = position.count;
+      for (let i = 0; i < position.count; i += 37) {
+        assert.ok(Number.isFinite(position.getY(i)));
+        assert.ok(normal.getY(i) > 0, 'Triangles must face above the ground');
+        assert.ok(Math.abs(Math.hypot(normal.getX(i), normal.getY(i), normal.getZ(i)) - 1) < .00001);
+        assert.ok(mountainHabitat.getX(i) >= 0 && mountainHabitat.getX(i) <= 1);
+        assert.ok(Math.abs(mountainHabitat.getY(i)) <= 1);
+        assert.ok(color.getY(i) >= .8 && color.getY(i) <= 1);
+      }
+      assert.ok(surfaceHeight(0, -80) < -20, 'Fine geometry must preserve the clear lake basin');
+      for (let i = 0; i < steps; i += 7) {
+        const p = flight[i];
+        assert.ok(p.y - Math.max(0, surfaceHeight(p.x, p.z)) > 2.5, 'The actual triangles must clear the flight');
+      }
+      // Sample a real indexed triangle: shoreline placement must interpolate
+      // exactly the surface that the GPU draws on the nonuniform grid.
+      for (let i = 0; i < ground.index.count; i += 1221) {
+        const a = ground.index.getX(i), b = ground.index.getX(i + 1), c = ground.index.getX(i + 2);
+        const x = (position.getX(a) + position.getX(b) + position.getX(c)) / 3;
+        const z = (position.getZ(a) + position.getZ(b) + position.getZ(c)) / 3;
+        const expected = (position.getY(a) + position.getY(b) + position.getY(c)) / 3;
+        assert.ok(Math.abs(surfaceHeight(x, z) - expected) < .001, 'Stones must follow rendered triangles');
+      }
+    } finally { ground.dispose(); }
   }
 });

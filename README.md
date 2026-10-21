@@ -1,6 +1,6 @@
 # Aerō worlds
 
-Choose a living 3D world and explore it in one continuous, scroll-controlled flight. The original Frutiger Aero city remains the default. Open the world button at the top right to switch to **Autumn / Amberfall**, an independent river valley, or **Monsoon / Rainmere**, an uninhabited alpine lake. Monsoon is developed on `codex/monsoon-world`, based on the completed multi-world autumn branch.
+Choose a living 3D world and explore it in one continuous, scroll-controlled flight. The original Frutiger Aero city remains the default. Open the world button at the top right to switch to **Autumn / Amberfall**, an independent river valley, or **Monsoon / Rainmere**, an uninhabited alpine lake. All three completed worlds ship together on `main`.
 
 Direct links are `/?world=original`, `/?world=autumn` and `/?world=monsoon`. Winter and Spring appear as **Coming later**, ready for future theme branches. Only the selected world's scene module is loaded. Switching navigates to its own URL and releases the old page's graphics context.
 
@@ -41,7 +41,7 @@ The mill's visible paddle spill and downstream current share one animation clock
 
 A vast clear lake faces one dramatic mountain beyond its far shore. Low green hills leave both sides open, and a photographic blue sky carries bright cumulus clouds. Travel over submerged pebbles, across the lake toward snowmelt cascades, and along the green shore before returning home. The mountain remains ahead throughout the continuous loop. No people, characters, buildings or human silhouettes are present.
 
-The terrain, lake-depth chart and flight tests share the same geography. Generated rock textures cover the modeled ridges and gullies. Snow accumulates near the summit by slope and elevation; light rain falls around the camera, circles spread across the water, and mist drifts around the mountain. Cached terrain shadows and a photographic HDR environment supply directional and reflected light. The transparent water reveals actual submerged stones while reflecting the scene. The optional sound is a soft synthesized rainfall. See [assets and generation prompts](docs/monsoon-assets.md) and [validation cases](docs/monsoon-testing.md).
+The terrain, lake-depth chart and flight tests share the same geography. Branching erosion channels, broken buttresses and nested rock fractures shape the mountain, with a two-metre desktop mesh concentrated around its faces. Generated rock textures add mineral grain and tilted bedding. Broad slope and concavity control snow accumulation in summit gullies and grassy lower ledges; baked cavity shading gives the ravines depth. Phone and recovery profiles use coarser, bounded meshes. Light rain falls around the camera, circles spread across the water, and mist drifts around the mountain. Cached terrain shadows and a photographic HDR environment supply directional and reflected light. The transparent water reveals actual submerged stones while reflecting the scene. The optional sound is a soft synthesized rainfall. See [assets and generation prompts](docs/monsoon-assets.md) and [validation cases](docs/monsoon-testing.md).
 
 ## Adding worlds
 
