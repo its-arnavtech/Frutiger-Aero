@@ -35,6 +35,8 @@ a.theme-choice:hover{background:#ffffff14;border-color:#ffffff77;transform:trans
 .theme-label small{font-size:10px;font-weight:400;letter-spacing:.03em;opacity:.55}
 .theme-arrow{font-size:19px;opacity:.75}
 #future-worlds{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;margin-top:23px;padding-top:19px;border-top:1px solid #ffffff16}
+.landscape-credit{display:none;color:inherit;font-size:10px;opacity:.65;margin-top:18px;text-underline-offset:3px}
+[data-theme=autumn] .landscape-credit{display:inline-block}
 .unavailable{border:0;border-radius:0;background:none;flex-direction:column;text-align:center;padding:8px 0;gap:10px;opacity:.5}
 .unavailable .theme-orb{width:24px;height:24px}
 .unavailable .theme-label strong{font-size:11px}

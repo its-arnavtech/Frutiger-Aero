@@ -53,51 +53,71 @@ export function timberMaterial(maps, color) {
 }
 
 export function mountainStone(maps) {
-  const material = new THREE.MeshStandardMaterial({ color: '#e5e8e9', map: maps.alpine, vertexColors: true, roughness: .92, envMapIntensity: .65 });
+  const material = new THREE.MeshStandardMaterial({ color: '#e5e8e9', map: maps.alpine, vertexColors: true, roughness: .92, envMapIntensity: .3 });
   material.onBeforeCompile = shader => {
     shader.uniforms.alpineNormalMap = { value: maps.rockNormal };
     shader.uniforms.alpineRoughMap = { value: maps.rockRough };
+    shader.uniforms.alpineMineralMap = { value: maps.rock };
+    shader.uniforms.alpineGrassMap = { value: maps.grass };
     shader.vertexShader = `attribute float alpineCavity; varying float ridgeCavity;
+      attribute vec2 alpineHabitat; varying vec2 ridgeHabitat;
       varying vec3 ridgePosition, ridgeNormal;\n${shader.vertexShader}`
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nridgePosition=position; ridgeNormal=normal; ridgeCavity=alpineCavity;');
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nridgePosition=position; ridgeNormal=normal; ridgeCavity=alpineCavity; ridgeHabitat=alpineHabitat;');
     shader.fragmentShader = `varying vec3 ridgePosition, ridgeNormal; varying float ridgeCavity;
-      uniform sampler2D alpineNormalMap,alpineRoughMap;
+      varying vec2 ridgeHabitat;
+      uniform sampler2D alpineNormalMap,alpineRoughMap,alpineMineralMap,alpineGrassMap;
       ${surfaceDetail}
       ${shader.fragmentShader}`
       .replace('#include <map_fragment>', `
         vec3 weight=projectionWeights(ridgeNormal);
-        vec3 p=ridgePosition*vec3(.012,.019,.012);
+        vec3 p=ridgePosition*vec3(.014,.018,.014);
         float warp=detailNoise(ridgePosition*.006);
         p+=vec3(warp*.17,warp*.29,warp*.11);
         vec4 sampledDiffuseColor=projectSurface(map,p,weight);
         vec3 broad=projectSurface(map,p*3.73+vec3(.31,.71,.13),weight).rgb;
         sampledDiffuseColor.rgb=mix(sampledDiffuseColor.rgb,broad,.28);
-        diffuseColor*=sampledDiffuseColor;
-        float mineral=detailNoise(ridgePosition*vec3(.009,.021,.009));
-        float bedding=detailNoise(vec3(ridgePosition.x*.013,ridgePosition.y*.11+warp*3.,ridgePosition.z*.017));
-        diffuseColor.rgb*=mix(vec3(.77,.83,.9),vec3(1.2,1.08,.9),mineral)*(.77+bedding*.32);
-        diffuseColor.rgb*=1.-max(0.,ridgeCavity)*.25;
-        float slope=normalize(ridgeNormal).y;
+        float mineral=detailNoise(ridgePosition*vec3(.006,.015,.006));
+        float bedding=detailNoise(vec3(ridgePosition.x*.01,ridgePosition.y*.065+warp*3.,ridgePosition.z*.013));
+        vec3 paleStone=projectSurface(alpineMineralMap,p*1.83+vec3(.51,.12,.39),weight).rgb;
+        float limestone=dot(paleStone,vec3(.24,.56,.2));
+        vec3 rock=mix(sampledDiffuseColor.rgb,vec3(limestone)*vec3(1.02,1.01,.94),.68);
+        rock=mix(vec3(.17,.19,.19),rock*.68,.78);
+        rock*=.72+bedding*.43;
+        rock*=1.-max(0.,ridgeCavity)*.44;
+        float slope=ridgeHabitat.x;
         float grit=detailNoise(ridgePosition*.21);
         float drift=detailNoise(ridgePosition*.037)*.65+detailNoise(ridgePosition*.12)*.35;
-        float snowLine=420.+(drift-.5)*120.-max(ridgeCavity,0.)*115.;
-        float altitude=smoothstep(snowLine-35.,snowLine+100.,ridgePosition.y);
-        float holding=smoothstep(.28,.84,slope+ridgeCavity*.18);
-        float snow=smoothstep(.25,.66,altitude*holding+max(ridgeCavity,0.)*altitude*.3);
-        snow*=smoothstep(.08,.27,drift+altitude*.35);
-        vec3 snowColor=mix(vec3(.65,.74,.82),vec3(.91,.94,.96),grit*.4+.6);
-        diffuseColor.rgb=mix(diffuseColor.rgb,snowColor,snow);
-        float sediment=smoothstep(.81,.96,slope)*(1.-snow)*(1.-smoothstep(210.,460.,ridgePosition.y));
-        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.26,.245,.22)*(.8+grit*.25),sediment*.48);`)
+        // Stable, shallow terraces grow alpine grass. Bare talus collects below
+        // cliffs and in drainage fans; steep crags remain exposed mineral rock.
+        float grassLine=510.+(mineral-.5)*140.;
+        float meadow=smoothstep(.48,.83,slope)*(1.-smoothstep(grassLine-40.,grassLine+85.,ridgePosition.y));
+        float drainage=smoothstep(.06,.52,ridgeHabitat.y);
+        float talus=smoothstep(.67,.85,slope)*(1.-smoothstep(.91,.97,slope));
+        talus=max(talus*.24,drainage*.88)*smoothstep(110.,260.,ridgePosition.y);
+        meadow*=1.-talus;
+        meadow*=smoothstep(.2,.54,mineral+drift*.28);
+        vec3 grassTex=texture2D(alpineGrassMap,ridgePosition.xz*.06).rgb;
+        vec3 grass=mix(vec3(.065,.11,.018),vec3(.17,.24,.043),mineral);
+        grass*=.86+dot(grassTex,vec3(.3,.7,.2));
+        vec3 scree=mix(vec3(.19,.195,.18),vec3(.38,.36,.30),bedding)*(.8+grit*.37);
+        vec3 surface=mix(rock,scree,talus*.72);
+        surface=mix(surface,grass,meadow);
+        float snowLine=535.+(drift-.5)*95.-max(ridgeHabitat.y,0.)*110.;
+        float altitude=smoothstep(snowLine-25.,snowLine+70.,ridgePosition.y);
+        float holding=.12+.88*smoothstep(.48,.88,slope+ridgeHabitat.y*.2);
+        float snow=smoothstep(.38,.78,altitude*holding+max(ridgeHabitat.y,0.)*altitude*.35);
+        snow*=smoothstep(.08,.29,drift+altitude*.3);
+        vec3 snowColor=mix(vec3(.59,.68,.77),vec3(.88,.91,.93),grit*.3+.6);
+        diffuseColor.rgb*=mix(surface,snowColor,snow);`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         roughnessFactor=mix(clamp(projectSurface(alpineRoughMap,p*1.7,weight).g*.65+.3,.65,1.),.83,snow);`)
       .replace('#include <normal_fragment_maps>', `
-        vec3 rockSurface=projectedNormal(alpineNormalMap,p*1.7,weight,normal,-vViewPosition,.75);
-        normal=normalize(mix(rockSurface,normal,snow*.93));
-        float rockRelief=dot(sampledDiffuseColor.rgb,vec3(.333))*(1.-snow)*5.5;
+        vec3 rockSurface=projectedNormal(alpineNormalMap,p*1.7,weight,normal,-vViewPosition,.26);
+        normal=normalize(mix(rockSurface,normal,max(snow*.93,meadow*.88)));
+        float rockRelief=dot(sampledDiffuseColor.rgb,vec3(.333))*(1.-snow)*(1.-meadow)*.65;
         normal=reliefNormal(normal,-vViewPosition,rockRelief);`);
   };
-  material.customProgramCacheKey = () => 'autumn-alpine-eroded-pbr-snow-v2';
+  material.customProgramCacheKey = () => 'autumn-alpine-surveyed-biomes-v5';
   return material;
 }
 

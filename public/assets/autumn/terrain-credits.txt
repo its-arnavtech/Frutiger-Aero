@@ -1,0 +1,19 @@
+Amberfall alpine terrain credits
+
+Terrain Tiles accessed on 2026-10-21 from the Registry of Open Data on AWS:
+https://registry.opendata.aws/terrain-tiles/
+Terrain tiles assembled by Mapzen / Tilezen.
+
+Produced using Copernicus data and information funded by the European Union - EU-DEM layers.
+SRTM data courtesy of the U.S. Geological Survey.
+
+Provider attribution and source terms:
+https://github.com/tilezen/joerd/blob/master/docs/attribution.md
+
+This artistic scene uses a cropped, rotated and rescaled elevation field from
+the Swiss Alps (bounds 7.70863 to 7.84467 E, 46.43767 to 46.55094 N), with a blended boundary,
+additional small rock relief, and fictional vegetation/snow/materials.
+It is not a geographic reconstruction and is not suitable for navigation.
+
+Rock/grass/bark surface scans: Poly Haven, CC0.
+https://polyhaven.com/license

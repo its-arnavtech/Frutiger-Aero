@@ -33,7 +33,7 @@ These Poly Haven materials are CC0, downloaded at 1K with diffuse, OpenGL normal
 
 The CC0 Poly Haven sky photograph is warmed in the sky shader and its HDR companion lights surface reflections. Marble Cliff supplies shoreline stone detail. The underwater terrain uses smooth mineral sand shading; the river has no painted gravel surface. Three.js's water normal texture animates the river surface. Autumn uses connected, procedurally modeled roots, trunks, forks and twigs in `tree-geometry.js`, with the existing Metasequoia Bark scan and Grass Ground scan. Original-world foliage remains unchanged.
 
-Source links and licenses are retained in [assets.md](assets.md). The landscape, village, bridge, waterwheel, mountain ridges, river, sedges and camera path are modeled procedurally in `src/autumn/`.
+Source links and licenses are retained in [assets.md](assets.md). The landscape, village, bridge, waterwheel, river, sedges and camera path are modeled procedurally in `src/autumn/`. The alpine range now uses the elevation dataset recorded below.
 
 ## Individual maple atlas — detailed scene repair
 
@@ -74,3 +74,13 @@ Final generation prompt:
 Original generation prompt:
 
 > Use case: photorealistic-natural. Asset type: seamless PBR base-color texture for actual 3D alpine cliffs in a rainy mountain lake world. Generate a square, extremely detailed orthographic close-up of dark grey alpine sedimentary rock, fine horizontal bedding, irregular vertical fissures, broken slate faces, slightly brown mineral weathering and a few subtle pale quartz seams. Diffuse overcast illumination with no directional shadow, no specular highlight, flat exposure appropriate for an albedo map. Edge-to-edge surface, no perspective, no horizon, no landscape, no snow, no plants, no humans or animals, no objects, no writing, no watermark. Natural physically believable photographic rock detail at multiple scales, quiet neutral grey tones with restrained variation. The material is rain-darkened limestone, not lava or crystalline marble. Seamlessly tileable horizontally and vertically, square 2048 by 2048 if supported.
+
+## Surveyed alpine terrain — 2026-10-21
+
+- Source: [Mapzen Terrain Tiles on AWS](https://registry.opendata.aws/terrain-tiles/), Terrarium elevation tiles, zoom 13. The source is numerical elevation data, not a background photograph.
+- Geographic crop: Swiss Alps near Blüemlisalp and Oeschinensee. An 11 × 8 km rotated rectangle faces 104° from a near-edge centre at 7.726 E, 46.503 N. Its bounding extent is 7.70863–7.84467 E, 46.43767–46.55094 N. This is an artistic landscape based on real relief, not a claim to reproduce the reference photograph's location.
+- Required source credits: **Produced using Copernicus data and information funded by the European Union - EU-DEM layers.** **SRTM data courtesy of the U.S. Geological Survey.** [Provider attribution and terms](https://github.com/tilezen/joerd/blob/master/docs/attribution.md).
+- Reproduction: `tools/prepare-alpine-terrain.py` requires Python, Pillow and NumPy. It downloads 20 public PNG tiles into the ignored `artifacts/terrain-source` directory, decodes metre elevations, bilinearly samples the rotated 385 × 257 grid, and quantizes heights at 0.1 metre. This precision describes storage, not source survey accuracy.
+- Runtime data: `src/autumn/alpine-elevation.js`, approximately 264 KB before compression. The data is bundled with Autumn; there is no runtime dependency on a map service. The terrain uses a fixed mesh throughout the flight.
+- Artistic modifications: vertical/horizontal rescaling, a blended perimeter, and small added fracture relief. Broad slope and concavity control green terraces, scree fans, bare crags and snow in gullies. The existing slate, mineral and grass textures provide surface detail. Distant instanced conifers establish scale along the lower slopes.
+- Public attribution: `public/assets/autumn/terrain-credits.txt`, accessible through **Landscape credits** in Autumn's world picker.

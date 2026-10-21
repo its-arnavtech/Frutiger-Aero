@@ -9,6 +9,7 @@ import { buildWatermill } from '../src/autumn/mill.js';
 import { createBatcher } from '../src/build.js';
 import { buildTerrain } from '../src/autumn/landscape.js';
 import { createRiverStone, createMeadowTuft } from '../src/autumn/ground-details.js';
+import { alpineElevations, terrainColumns, terrainRows } from '../src/autumn/alpine-elevation.js';
 
 test('the mill has a downhill supply and an uninterrupted submerged outlet into the river', () => {
   for (let i = 1; i < millRace.feed.length; i++) assert.ok(millRace.feed[i][1] < millRace.feed[i - 1][1]);
@@ -81,6 +82,13 @@ test('the rendered terrain leaves the narrow millrace open, including between gr
     const hit = ray.intersectObject(ground)[0];
     assert.ok(hit && hit.point.y < -.4, `Ground triangles obstruct the stream at ${x}`);
   }
+  // The elevated waypoint used to expose sky below the distant foothills.
+  scene.updateMatrixWorld(true);
+  for(const x of [-800,-500,500,800]) for(const z of [-650,-950]) {
+    ray.ray.origin.set(x,200,z);
+    const hit=ray.intersectObjects(scene.children,false)[0];
+    assert.ok(hit && hit.point.y>-20 && hit.point.y<100, 'A gap remains outside the detailed valley');
+  }
   const resources = new Set();
   scene.traverse(o => { o.geometry?.dispose(); if (o.material) resources.add(o.material); });
   resources.forEach(m => m.dispose());
@@ -127,15 +135,25 @@ test('all cottage windows, including the upper sanctuary, are real openings in t
 });
 
 test('the alpine backdrop has substantial relief and stays beyond the entire flight', () => {
-  assert.ok(alpineHeight(20, -1160) > 650);
   const samples = [];
-  for (let x = -600; x <= 600; x += 30) samples.push(alpineHeight(x, -1110));
+  for (let z = -1600; z <= -800; z += 40) for (let x = -600; x <= 600; x += 30) samples.push(alpineHeight(x, z));
+  assert.ok(Math.max(...samples) > 650, 'The surveyed range has lost its high summit');
   assert.ok(samples.every(Number.isFinite)); assert.ok(Math.max(...samples) - Math.min(...samples) > 400);
   for (let i = 0; i < 1200; i++) assert.ok(cameraAt(i / 1200).z > -500);
+  for(let x=-1550;x<=1550;x+=25) assert.equal(alpineHeight(x,-550),6, 'The mountain must meet the valley without a vertical edge');
+});
+
+test('bundled alpine elevation data preserves metre units and the surveyed relief', () => {
+  assert.equal(alpineElevations.length, terrainColumns * terrainRows);
+  let low=Infinity,high=-Infinity;
+  for(const height of alpineElevations) {
+    assert.ok(Number.isFinite(height)); low=Math.min(low,height); high=Math.max(high,height);
+  }
+  assert.ok(low>1100 && low<1250 && high>3500 && high<3800, 'DEM byte order, scale or geographic crop is invalid');
 });
 
 test('the actual mountain mesh contains relief, valid normals and baked gully shading', () => {
-  const geometry = createAlpineGeometry(), { position, normal, color, alpineCavity } = geometry.attributes;
+  const geometry = createAlpineGeometry(), { position, normal, color, alpineCavity, alpineHabitat } = geometry.attributes;
   let darkest = 1, lightest = 0, highest = 0;
   let gullies = 0, ridges = 0;
   for (let i = 0; i < position.count; i++) {
@@ -146,6 +164,8 @@ test('the actual mountain mesh contains relief, valid normals and baked gully sh
     assert.ok(Math.abs(length - 1) < .001, 'Invalid surface lighting normal');
     const cavity=alpineCavity.getX(i);
     assert.ok(Number.isFinite(cavity) && cavity>=-1 && cavity<=1);
+    assert.ok(alpineHabitat.getX(i)>0 && alpineHabitat.getX(i)<=1);
+    assert.ok(Math.abs(alpineHabitat.getY(i))<=1);
     if(position.getY(i)>350 && cavity>.2) gullies++;
     if(position.getY(i)>350 && cavity<-.2) ridges++;
     if (i % 137 === 0) assert.ok(Math.abs(position.getY(i) - alpineHeight(position.getX(i), position.getZ(i))) < .001, 'Mesh and terrain definition disagree');

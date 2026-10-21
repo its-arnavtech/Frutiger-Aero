@@ -30,7 +30,7 @@ export async function createWorld(canvas, { signal, onStage }) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
   renderer.info.autoReset = false;
-  const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2('#c2ced0', .00024);
+  const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2('#c2ced0', .00015);
   const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, .2, 4400); camera.layers.enable(1);
   let cinema, environment;
   const resources = new Set();
