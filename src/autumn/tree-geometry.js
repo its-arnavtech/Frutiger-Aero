@@ -24,8 +24,8 @@ export function createDeciduousGeometry(seed, { hero = false, kind = 0 } = {}) {
     return curve;
   }
   function spray(origin, size, turn) {
-    // Each quad carries one photographed leaf and has a small physical twist.
-    // Leaves retain their own normals rather than shading a whole spray flat.
+    // Two curved halves meet at a raised midrib. Six vertices give a leaf a
+    // physical fold and independent highlights instead of a flat square card.
     const normal = v((random() - .5) * 1.8, .12 + random() * .88, (random() - .5) * 1.8).normalize();
     const right = new THREE.Vector3().crossVectors(v(Math.cos(turn), .15, Math.sin(turn)), normal).normalize();
     const up = new THREE.Vector3().crossVectors(normal, right).normalize();
@@ -36,13 +36,16 @@ export function createDeciduousGeometry(seed, { hero = false, kind = 0 } = {}) {
     const offset = leaf.position.length / 3;
     const shelter = THREE.MathUtils.clamp(origin.y * .7 + Math.hypot(origin.x, origin.z) * .55, .3, 1);
     const tone = (.77 + random() * .21) * (.67 + shelter * .33);
-    for (const [x, y, u, w] of [[-.5, -.5, 0, 0], [.5, -.5, 1, 0], [.5, .5, 1, 1], [-.5, .5, 0, 1]]) {
-      const p = origin.clone().addScaledVector(right, x * size).addScaledVector(up, y * size).addScaledVector(normal, x * y * size * .4);
+    const curl = .09 + random() * .15, twist = (random() - .5) * .3;
+    for (const [x, y, u, w] of [[-.5,-.5,0,0],[0,-.5,.5,0],[.5,-.5,1,0],[-.5,.5,0,1],[0,.5,.5,1],[.5,.5,1,1]]) {
+      const fold = ((1 - 4 * x * x) * curl + x * y * twist + y * y * .12) * size;
+      const p = origin.clone().addScaledVector(right, x * size).addScaledVector(up, y * size).addScaledVector(normal, fold);
       leaf.position.push(p.x, p.y, p.z); leaf.normal.push(normal.x, normal.y, normal.z);
       leaf.uv.push((atlas % 2 + .018 + u * .964) * .5, (Math.floor(atlas / 2) + .018 + w * .964) * .5);
       leaf.color.push(tone, tone, tone);
     }
-    leaf.index.push(offset, offset + 1, offset + 2, offset, offset + 2, offset + 3);
+    leaf.index.push(offset,offset+1,offset+4, offset,offset+4,offset+3,
+      offset+1,offset+2,offset+5, offset+1,offset+5,offset+4);
   }
   const lean = (random() - .5) * .13;
   const trunk = limb([v(0, -.012, 0), v(lean * .2, .14, -.008), v(lean, .33, .018), v(lean + .028, .57, -.025)], hero ? .048 : .024, .005, hero ? 18 : 12, hero ? 14 : 10, true);
@@ -72,18 +75,20 @@ export function createDeciduousGeometry(seed, { hero = false, kind = 0 } = {}) {
         const origin = twig.getPoint(.5 + t * .45), twigAngle = angle + (t ? -.8 : .8);
         const terminal = origin.clone().add(v(Math.cos(twigAngle) * .055, .035 + random() * .025, Math.sin(twigAngle) * .055));
         const shoot = limb([origin, terminal], .001, .00015, hero ? 2 : 1, 3);
-        for (let n = 0; n < (hero ? 72 : 38); n++) {
+        // One folded leaf replaces each old pair of overlapping cards. The
+        // triangle budget stays comparable while light can pass between leaves.
+        for (let n = 0; n < (hero ? 80 : 38); n++) {
           const where = shoot.getPoint(.12 + random() * .88);
           where.add(v((random() - .5) * .17, (random() - .5) * .11, (random() - .5) * .17));
-          const size = (hero ? .016 : .027) + random() * (hero ? .012 : .018);
+          const size = (hero ? .018 : .031) + random() * (hero ? .014 : .021);
           spray(where, size, random() * TAU);
-          spray(where.clone().add(v(.012 * Math.cos(n), .015, .012 * Math.sin(n))), size * .85, random() * TAU);
         }
       }
     }
   }
   const branches = new THREE.BufferGeometry(); branches.setAttribute('position', new THREE.Float32BufferAttribute(wood.position, 3)); branches.setAttribute('uv', new THREE.Float32BufferAttribute(wood.uv, 2)); branches.setIndex(wood.index); branches.computeVertexNormals();
   const leaves = new THREE.BufferGeometry();
+  leaves.userData.leafVertexCount = 6;
   for (const name of ['position', 'normal', 'uv', 'color']) leaves.setAttribute(name, new THREE.Float32BufferAttribute(leaf[name], name === 'uv' ? 2 : 3));
   leaves.setIndex(leaf.index); leaves.computeVertexNormals(); leaves.computeBoundingBox(); branches.computeBoundingBox();
   const height = Math.max(leaves.boundingBox.max.y, branches.boundingBox.max.y);

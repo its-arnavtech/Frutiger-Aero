@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
 import { createDeciduousGeometry } from '../src/autumn/tree-geometry.js';
 import { thinned } from '../src/foliage-tools.js';
 
@@ -20,14 +21,31 @@ test('complete autumn tree geometry fits the canopy bounds used for flight clear
   }
 });
 
+test('individual leaves have a real midrib fold without increasing the ordinary crown triangle budget', () => {
+  const { leaves, branches } = createDeciduousGeometry(7193);
+  const p = leaves.attributes.position, n = leaves.attributes.normal;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  let folded = 0;
+  for (let i = 0; i < p.count; i += 6) {
+    a.fromBufferAttribute(p,i); b.fromBufferAttribute(p,i+2); c.fromBufferAttribute(p,i+1);
+    const chord = a.add(b).multiplyScalar(.5);
+    if(c.distanceTo(chord) > .0001) folded++;
+    for(let j=0;j<6;j++) assert.ok(Math.abs(Math.hypot(n.getX(i+j),n.getY(i+j),n.getZ(i+j))-1)<.001);
+  }
+  assert.ok(folded > p.count/6*.95, 'The crown has reverted to flat leaf cards');
+  assert.ok(leaves.index.count/3 <= 7*3*3*2*38*2*2, 'Leaf curvature doubled the old triangle budget');
+  leaves.dispose(); branches.dispose();
+});
+
 test('individual leaf UVs stay inside one atlas cell, including the simplified water reflection', () => {
   const tree = createDeciduousGeometry(7193), reflected = thinned(tree.leaves, 14, 2.8, 1.1);
   for (const geometry of [tree.leaves, reflected]) {
-    const uv = geometry.attributes.uv, cells = new Set();
-    for (let i = 0; i < uv.count; i += 4) {
+    const uv = geometry.attributes.uv, cells = new Set(), vertices = geometry.userData.leafVertexCount;
+    assert.equal(vertices, 6);
+    for (let i = 0; i < uv.count; i += vertices) {
       const column = Math.floor(uv.getX(i) * 2), row = Math.floor(uv.getY(i) * 2);
       cells.add(`${column},${row}`);
-      for (let j = 0; j < 4; j++) {
+      for (let j = 0; j < vertices; j++) {
         const x = uv.getX(i + j) * 2, y = uv.getY(i + j) * 2;
         assert.ok(x > column && x < column + 1 && y > row && y < row + 1, 'A leaf samples its neighbouring atlas cell');
       }

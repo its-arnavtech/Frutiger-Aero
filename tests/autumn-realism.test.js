@@ -135,16 +135,22 @@ test('the alpine backdrop has substantial relief and stays beyond the entire fli
 });
 
 test('the actual mountain mesh contains relief, valid normals and baked gully shading', () => {
-  const geometry = createAlpineGeometry(), { position, normal, color } = geometry.attributes;
+  const geometry = createAlpineGeometry(), { position, normal, color, alpineCavity } = geometry.attributes;
   let darkest = 1, lightest = 0, highest = 0;
+  let gullies = 0, ridges = 0;
   for (let i = 0; i < position.count; i++) {
     highest = Math.max(highest, position.getY(i));
     const shade = color.getY(i); darkest = Math.min(darkest, shade); lightest = Math.max(lightest, shade);
     assert.ok(Number.isFinite(shade) && shade >= .3 && shade <= 1);
     const length = Math.hypot(normal.getX(i), normal.getY(i), normal.getZ(i));
     assert.ok(Math.abs(length - 1) < .001, 'Invalid surface lighting normal');
+    const cavity=alpineCavity.getX(i);
+    assert.ok(Number.isFinite(cavity) && cavity>=-1 && cavity<=1);
+    if(position.getY(i)>350 && cavity>.2) gullies++;
+    if(position.getY(i)>350 && cavity<-.2) ridges++;
     if (i % 137 === 0) assert.ok(Math.abs(position.getY(i) - alpineHeight(position.getX(i), position.getZ(i))) < .001, 'Mesh and terrain definition disagree');
   }
   assert.ok(highest > 650 && lightest - darkest > .35, 'The range has lost its summit or shaded gullies');
+  assert.ok(gullies>100 && ridges>100, 'The alpine mesh needs exposed ridges and recessed snow-catching gullies');
   geometry.dispose();
 });

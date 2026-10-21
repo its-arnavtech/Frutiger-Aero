@@ -33,20 +33,24 @@ export function keepLeafGaps(texture, cutoff = .42) {
 // The camera's autumn crowns always retain their full geometry.
 export function thinned(source, keep, enlargement, lift = 1) {
   const result = new THREE.BufferGeometry(), arrays = { position: [], normal: [], uv: [], color: [] }, indices = [], attributes = source.attributes;
-  const center = new THREE.Vector3(), p = new THREE.Vector3(), sprays = attributes.position.count >> 2;
-  const outer = Array.from({ length: sprays }, (_, i) => i).sort((a, b) => attributes.color.getY(b * 4) - attributes.color.getY(a * 4)).slice(0, Math.ceil(sprays * 2 / keep));
+  const vertices = source.userData.leafVertexCount || 4;
+  result.userData.leafVertexCount = vertices;
+  const center = new THREE.Vector3(), p = new THREE.Vector3(), sprays = attributes.position.count / vertices;
+  const outer = Array.from({ length: sprays }, (_, i) => i).sort((a, b) => attributes.color.getY(b * vertices) - attributes.color.getY(a * vertices)).slice(0, Math.ceil(sprays * 2 / keep));
   let offset = 0;
   for (let n = 0; n < outer.length; n += 2) {
-    const start = outer[n] * 4;
+    const start = outer[n] * vertices;
     center.set(0, 0, 0);
-    for (let v = 0; v < 4; v++) center.add(p.fromBufferAttribute(attributes.position, start + v));
-    center.multiplyScalar(.25);
-    for (let v = 0; v < 4; v++) {
+    for (let v = 0; v < vertices; v++) center.add(p.fromBufferAttribute(attributes.position, start + v));
+    center.multiplyScalar(1 / vertices);
+    for (let v = 0; v < vertices; v++) {
       p.fromBufferAttribute(attributes.position, start + v).sub(center).multiplyScalar(enlargement).add(center);
       arrays.position.push(p.x, p.y, p.z);
       for (const name of ['normal', 'uv', 'color']) { const a = attributes[name]; for (let k = 0; k < a.itemSize; k++) arrays[name].push(a.array[(start + v) * a.itemSize + k] * (name === 'color' ? lift : 1)); }
     }
-    indices.push(offset, offset + 1, offset + 2, offset, offset + 2, offset + 3); offset += 4;
+    if (vertices === 6) indices.push(offset,offset+1,offset+4,offset,offset+4,offset+3,offset+1,offset+2,offset+5,offset+1,offset+5,offset+4);
+    else indices.push(offset, offset + 1, offset + 2, offset, offset + 2, offset + 3);
+    offset += vertices;
   }
   for (const [name, data] of Object.entries(arrays)) result.setAttribute(name, new THREE.Float32BufferAttribute(data, name === 'uv' ? 2 : 3));
   result.setIndex(indices); result.computeBoundingSphere();

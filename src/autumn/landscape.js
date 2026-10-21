@@ -34,7 +34,7 @@ export function buildTerrain(scene, maps) {
   const rockBatches = Array.from({ length: 14 }, (_, i) => {
     // Chips are permanently smaller meshes; nearby boulders keep their full
     // fractured shape at every camera distance, without a visible LOD swap.
-    const stones = new THREE.InstancedMesh(createRiverStone(916 + i % 7 * 137, i < 7 ? 4 : 1), stoneMaterial, 700);
+    const stones = new THREE.InstancedMesh(createRiverStone(916 + i % 7 * 137, i < 7 ? 7 : 1), stoneMaterial, 700);
     stones.count = 0; stones.receiveShadow = stones.castShadow = true;
     stones.name = `Fractured river stones ${i + 1}`; scene.add(stones); return stones;
   });

@@ -18,31 +18,41 @@ export async function createForest(scene, renderer, signal, branchMap, maps) {
     const leafMap = branchMap, barkMap = maps.bark, barkNormal = maps.barkNormal;
     for (const texture of [leafMap, barkMap, barkNormal].filter(Boolean)) { texture.anisotropy = renderer.capabilities.getMaxAnisotropy(); textures.add(texture); }
     foliageTextures.add(leafMap);
-    const foliage = new THREE.MeshStandardMaterial({ map: leafMap, vertexColors: true, alphaTest: .32, alphaToCoverage: true, roughness: .73, envMapIntensity: .6, side: THREE.DoubleSide });
+    const foliage = new THREE.MeshStandardMaterial({ map: leafMap, vertexColors: true, alphaTest: .32, alphaToCoverage: true, roughness: .68, envMapIntensity: .7, side: THREE.DoubleSide });
     foliage.onBeforeCompile = shader => {
       shader.uniforms.autumnTime = time;
-      shader.vertexShader = `uniform float autumnTime;\n${shader.vertexShader}`.replace('#include <begin_vertex>', `#include <begin_vertex>
+      shader.vertexShader = `uniform float autumnTime; varying vec2 leafCell;\n${shader.vertexShader}`.replace('#include <begin_vertex>', `#include <begin_vertex>
+        leafCell=fract(uv*2.);
         vec3 root = instanceMatrix[3].xyz;
         float wind=sin(autumnTime*.7+root.x*.12+root.z*.09);
         transformed.x += (wind*.003+sin(autumnTime*2.+position.z*25.)*.001)*pow(max(position.y,0.),2.);`);
       // Preserve the photographed leaf colour, spots and veins. Per-tree tint
       // supplies small natural variations instead of painting the whole leaf orange.
+      shader.fragmentShader = `varying vec2 leafCell;\n${shader.fragmentShader}`;
       shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-        float relief = dot(sampledDiffuseColor.rgb, vec3(.25,.6,.15));
-        vec2 rise=vec2(dFdx(relief),dFdy(relief))*.012;
+        float relief=dot(sampledDiffuseColor.rgb,vec3(.25,.6,.15));
+        float midrib=exp(-abs(leafCell.x-.5)*110.)*smoothstep(.12,.3,leafCell.y);
+        vec2 rise=vec2(dFdx(relief*.007+midrib*.0015),dFdy(relief*.007+midrib*.0015));
         vec3 sx=dFdx(-vViewPosition), sy=dFdy(-vViewPosition), r1=cross(sy,normal), r2=cross(normal,sx);
         float det=dot(sx,r1);
         normal=normalize(abs(det)*normal-sign(det)*(rise.x*r1+rise.y*r2));`);
+      shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        float dryPatch=smoothstep(.15,.42,sampledDiffuseColor.r-sampledDiffuseColor.g);
+        roughnessFactor=mix(.57,.87,dryPatch);
+        if(!gl_FrontFacing) { diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.85,.93,.73),.3); roughnessFactor=.85; }`);
       shader.fragmentShader = shader.fragmentShader.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
         float skyward=inverseTransformDirection(normal,viewMatrix).y*.5+.5;
         reflectedLight.indirectDiffuse+=diffuseColor.rgb*mix(vec3(.12,.11,.07),vec3(.22,.28,.31),skyward)*.22;
         #if NUM_DIR_LIGHTS > 0
-        float through=pow(saturate(dot(geometryViewDir,-directionalLights[0].direction)),4.);
-        float thinLeaf=.65+.35*dot(sampledDiffuseColor.rgb,vec3(.2,.7,.1));
-        reflectedLight.directDiffuse+=diffuseColor.rgb*directionalLights[0].color*through*thinLeaf*.18;
+        float through=pow(saturate(dot(geometryViewDir,-directionalLights[0].direction)),3.);
+        float thinLeaf=(.55+.45*dot(sampledDiffuseColor.rgb,vec3(.2,.7,.1)))*(1.-midrib*.55);
+        float facingSun=abs(dot(nonPerturbedNormal,directionalLights[0].direction));
+        // Vertex colour carries crown shelter, preventing glowing leaves deep
+        // inside an unlit canopy. The vein remains thicker than the membrane.
+        reflectedLight.directDiffuse+=diffuseColor.rgb*directionalLights[0].color*through*thinLeaf*(.06+.22*facingSun);
         #endif`);
     };
-    foliage.customProgramCacheKey = () => 'individual-maple-leaf-translucency';
+    foliage.customProgramCacheKey = () => 'folded-maple-leaf-vein-translucency-v2';
     const bark = new THREE.MeshStandardMaterial({ map: barkMap, normalMap:barkNormal, normalScale:new THREE.Vector2(.8,.8), roughness:.91, color: '#f4eee2', envMapIntensity:1.1 });
     const selected = placements.filter(p => p.species === kind && (kind === 3 || p.variant === Math.floor(variant / 3)));
     // The full geometry remains unchanged through the flight. Compact only

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { surfaceDetail } from './surface-detail.js';
 
 export async function loadAutumnMaterials(load) {
   const sources = {
@@ -9,6 +10,7 @@ export async function loadAutumnMaterials(load) {
     timberRough: ['/assets/autumn/weathered_brown_planks_rough_1k.jpg'],
     rock: ['/assets/materials/marble_cliff_02_diff_1k.jpg', true],
     rockNormal: ['/assets/materials/marble_cliff_02_nor_gl_1k.jpg'],
+    rockRough: ['/assets/materials/marble_cliff_02_rough_1k.jpg'],
     alpine: ['/assets/autumn/alpine-slate.png', true],
     grass: ['/assets/materials/grass_ground_diff_1k.jpg', true],
     grassNormal: ['/assets/materials/grass_ground_nor_gl_1k.jpg'],
@@ -50,38 +52,52 @@ export function timberMaterial(maps, color) {
   return new THREE.MeshStandardMaterial({ map: maps.timber, normalMap: maps.timberNormal, normalScale: new THREE.Vector2(.45, .45), roughnessMap: maps.timberRough, color, roughness: .85, envMapIntensity: .7 });
 }
 
-export function mountainStone(map) {
-  const material = new THREE.MeshStandardMaterial({ color: '#c7cdd0', map, vertexColors: true, roughness: .92, envMapIntensity: .6 });
+export function mountainStone(maps) {
+  const material = new THREE.MeshStandardMaterial({ color: '#e5e8e9', map: maps.alpine, vertexColors: true, roughness: .92, envMapIntensity: .65 });
   material.onBeforeCompile = shader => {
-    shader.vertexShader = `varying vec3 ridgePosition, ridgeNormal;\n${shader.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\nridgePosition=position; ridgeNormal=normal;');
-    shader.fragmentShader = `varying vec3 ridgePosition, ridgeNormal;
-      float mountainHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-      float mountainNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mountainHash(i),mountainHash(i+vec2(1,0)),f.x),mix(mountainHash(i+vec2(0,1)),mountainHash(i+vec2(1,1)),f.x),f.y);}
+    shader.uniforms.alpineNormalMap = { value: maps.rockNormal };
+    shader.uniforms.alpineRoughMap = { value: maps.rockRough };
+    shader.vertexShader = `attribute float alpineCavity; varying float ridgeCavity;
+      varying vec3 ridgePosition, ridgeNormal;\n${shader.vertexShader}`
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nridgePosition=position; ridgeNormal=normal; ridgeCavity=alpineCavity;');
+    shader.fragmentShader = `varying vec3 ridgePosition, ridgeNormal; varying float ridgeCavity;
+      uniform sampler2D alpineNormalMap,alpineRoughMap;
+      ${surfaceDetail}
       ${shader.fragmentShader}`
       .replace('#include <map_fragment>', `
-        vec3 weight=pow(abs(normalize(ridgeNormal)),vec3(4.)); weight/=dot(weight,vec3(1.));
-        vec3 p=ridgePosition*vec3(.016,.026,.016);
-        p+=vec3(mountainNoise(ridgePosition.yz*.007),mountainNoise(ridgePosition.xz*.006),mountainNoise(ridgePosition.xy*.009))*.32;
-        vec4 sampledDiffuseColor=texture2D(map,p.yz)*weight.x+texture2D(map,p.xz)*weight.y+texture2D(map,p.xy)*weight.z;
-        vec3 broad=texture2D(map,p.yz*.283+vec2(.31,.71)).rgb*weight.x+texture2D(map,p.xz*.283+vec2(.51,.13)).rgb*weight.y+texture2D(map,p.xy*.283+vec2(.81,.37)).rgb*weight.z;
-        sampledDiffuseColor.rgb=mix(sampledDiffuseColor.rgb,broad,.22);
+        vec3 weight=projectionWeights(ridgeNormal);
+        vec3 p=ridgePosition*vec3(.012,.019,.012);
+        float warp=detailNoise(ridgePosition*.006);
+        p+=vec3(warp*.17,warp*.29,warp*.11);
+        vec4 sampledDiffuseColor=projectSurface(map,p,weight);
+        vec3 broad=projectSurface(map,p*3.73+vec3(.31,.71,.13),weight).rgb;
+        sampledDiffuseColor.rgb=mix(sampledDiffuseColor.rgb,broad,.28);
         diffuseColor*=sampledDiffuseColor;
-        float mineral=mountainNoise(ridgePosition.xy*.006+vec2(ridgePosition.z*.002,0.));
-        diffuseColor.rgb*=mix(vec3(.78,.84,.9),vec3(1.14,1.05,.89),mineral);
+        float mineral=detailNoise(ridgePosition*vec3(.009,.021,.009));
+        float bedding=detailNoise(vec3(ridgePosition.x*.013,ridgePosition.y*.11+warp*3.,ridgePosition.z*.017));
+        diffuseColor.rgb*=mix(vec3(.77,.83,.9),vec3(1.2,1.08,.9),mineral)*(.77+bedding*.32);
+        diffuseColor.rgb*=1.-max(0.,ridgeCavity)*.25;
         float slope=normalize(ridgeNormal).y;
-        float altitude=smoothstep(330.,620.,ridgePosition.y);
-        float drift=mountainNoise(ridgePosition.xz*.027);
-        float scree=mountainNoise(ridgePosition.xz*.18)*.6+mountainNoise(ridgePosition.xy*.41)*.4;
-        float snow=smoothstep(.43,.72,altitude*.66+drift*.34)*smoothstep(.25,.76,slope);
-        snow=smoothstep(.18,.61,snow-(1.-scree)*.23);
-        diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(.36,.45,.53),vec3(.61,.68,.73),scree),snow);`)
-      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-        float rockRelief=dot(sampledDiffuseColor.rgb,vec3(.333));
-        vec3 rx=dFdx(-vViewPosition), ry=dFdy(-vViewPosition), r1=cross(ry,normal), r2=cross(normal,rx);
-        float determinant=dot(rx,r1);
-        normal=normalize(abs(determinant)*normal-sign(determinant)*(.2*(1.-snow)+.015)*(dFdx(rockRelief)*r1+dFdy(rockRelief)*r2));`);
+        float grit=detailNoise(ridgePosition*.21);
+        float drift=detailNoise(ridgePosition*.037)*.65+detailNoise(ridgePosition*.12)*.35;
+        float snowLine=420.+(drift-.5)*120.-max(ridgeCavity,0.)*115.;
+        float altitude=smoothstep(snowLine-35.,snowLine+100.,ridgePosition.y);
+        float holding=smoothstep(.28,.84,slope+ridgeCavity*.18);
+        float snow=smoothstep(.25,.66,altitude*holding+max(ridgeCavity,0.)*altitude*.3);
+        snow*=smoothstep(.08,.27,drift+altitude*.35);
+        vec3 snowColor=mix(vec3(.65,.74,.82),vec3(.91,.94,.96),grit*.4+.6);
+        diffuseColor.rgb=mix(diffuseColor.rgb,snowColor,snow);
+        float sediment=smoothstep(.81,.96,slope)*(1.-snow)*(1.-smoothstep(210.,460.,ridgePosition.y));
+        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.26,.245,.22)*(.8+grit*.25),sediment*.48);`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        roughnessFactor=mix(clamp(projectSurface(alpineRoughMap,p*1.7,weight).g*.65+.3,.65,1.),.83,snow);`)
+      .replace('#include <normal_fragment_maps>', `
+        vec3 rockSurface=projectedNormal(alpineNormalMap,p*1.7,weight,normal,-vViewPosition,.75);
+        normal=normalize(mix(rockSurface,normal,snow*.93));
+        float rockRelief=dot(sampledDiffuseColor.rgb,vec3(.333))*(1.-snow)*5.5;
+        normal=reliefNormal(normal,-vViewPosition,rockRelief);`);
   };
-  material.customProgramCacheKey = () => 'autumn-alpine-snow-stone';
+  material.customProgramCacheKey = () => 'autumn-alpine-eroded-pbr-snow-v2';
   return material;
 }
 

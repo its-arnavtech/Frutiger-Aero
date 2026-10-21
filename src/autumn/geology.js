@@ -22,21 +22,30 @@ export function alpineHeight(x, z) {
   };
   const mass = Math.max(summit(20, -1160, 690, 580, 740), summit(-370, -1250, 500, 510, 570), summit(355, -1370, 510, 580, 660), summit(-730, -1500, 450, 520, 540), summit(760, -1600, 490, 540, 590));
   const warp = groundNoise(x * .007, z * .007) * 25;
-  const brokenFaces = 1 - Math.abs(groundNoise((x + warp) * .022, (z - warp) * .012) * 2 - 1);
-  const erosion = (groundNoise(x * .008, z * .009) - .5) * 110 + (brokenFaces - .6) * 44 + (groundNoise(x * .07, z * .07) - .5) * 7;
+  const u = x + warp + (groundNoise(x * .003 - 11, z * .004) - .5) * 100;
+  const v = z - warp;
+  // Nested ridges form interlocking buttresses, with smaller gullies branching
+  // through them. These are metre-scale geometry, not a painted cliff pattern.
+  const ridge = (frequency, stretch) => 1 - Math.abs(groundNoise(u * frequency, v * frequency * stretch) * 2 - 1);
+  const primary = ridge(.009, .74), secondary = ridge(.025, .56), broken = ridge(.069, .81);
+  const buttress = (primary ** 2 - .4) * 92 + (secondary ** 2 - .4) * 30 + (broken - .6) * 9;
+  const channels = (1 - secondary) ** 4 * 28 + (1 - broken) ** 4 * 7;
+  const fractures = (groundNoise((u + v * .34) * .15, (v - u * .27) * .15) - .5) * 3;
+  const strata = Math.sin(mass * .09 + x * .013 + groundNoise(x * .012, z * .01) * 3) * 2.8;
+  const erosion = (groundNoise(x * .004, z * .006) - .5) * 90 + buttress - channels + strata + fractures;
   return 6 + mass + erosion * smooth(0, 90, mass);
 }
 
 export function createAlpineGeometry() {
   // Fixed geometry all along the flight; the visible ridges are real relief.
-  const geometry = new THREE.PlaneGeometry(3100, 1800, 620, 360);
+  const geometry = new THREE.PlaneGeometry(3100, 1800, 775, 450);
   geometry.rotateX(-Math.PI / 2); geometry.translate(0, 0, -1450);
   const p = geometry.attributes.position;
   for (let i = 0; i < p.count; i++) p.setY(i, alpineHeight(p.getX(i), p.getZ(i)));
   // The distant range lies beyond the village's shadow camera. Bake its
   // terrain self-shadow once, using the same sun direction as the live scene,
   // instead of enlarging the shadow map and losing sharp nearby tree shadows.
-  const colors = new Float32Array(p.count * 3), columns = 621, rows = 361, spacing = 5;
+  const colors = new Float32Array(p.count * 3), relief = new Float32Array(p.count), columns = 776, rows = 451, spacing = 4;
   const sample = (x, z) => {
     const column = THREE.MathUtils.clamp((x + 1550) / spacing, 0, columns - 1);
     const row = THREE.MathUtils.clamp((z + 2350) / spacing, 0, rows - 1);
@@ -61,14 +70,19 @@ export function createAlpineGeometry() {
     }
     const shade = (1 - smooth(0, .13, obstruction) * .48) * (1 - shelter * .32);
     colors.set([shade * (1 - shelter * .04), shade, Math.min(1, shade * (1 + shelter * .05))], i * 3);
+    // Concavity identifies gullies where snow and sediment collect. Exposed
+    // ridges stay dark rock even at the same altitude as a neighbouring drift.
+    const neighbourhood = (sample(x-12,z)+sample(x+12,z)+sample(x,z-12)+sample(x,z+12))*.25;
+    relief[i] = THREE.MathUtils.clamp((neighbourhood-y)/9, -1, 1);
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute('alpineCavity', new THREE.BufferAttribute(relief, 1));
   geometry.computeVertexNormals(); geometry.computeBoundingSphere();
   return geometry;
 }
 
 export function buildAlpineRange(scene, maps) {
-  const range = new THREE.Mesh(createAlpineGeometry(), mountainStone(maps.alpine));
+  const range = new THREE.Mesh(createAlpineGeometry(), mountainStone(maps));
   range.name = 'Eroded alpine ridges with snow-filled gullies'; scene.add(range);
   return range;
 }
