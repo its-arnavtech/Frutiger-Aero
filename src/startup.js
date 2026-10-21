@@ -2,10 +2,11 @@
 // download must replace the loading screen with something the visitor can use.
 export function loadingMessage(error) {
   const message = error?.message || '';
+  if (/does not provide an export named|Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk .+ failed/i.test(message)) return 'The world\u2019s files could not be loaded. Reload the page to get the latest version.';
   if (/graphics connection/i.test(message)) return 'The graphics connection was interrupted. Try lighter rendering or reopen the page.';
   if (/WebGL|world graphics/i.test(message)) return 'This browser could not open the 3D world. Try lighter rendering or another browser.';
   if (/took too long/i.test(message)) return 'The world is taking too long to load. Check your connection, then try again or use lighter rendering.';
-  return 'The world could not finish loading. Check your connection and try again.';
+  return 'The world could not finish loading. Please try again.';
 }
 
 export function waitFor(promise, { signal, timeoutMs = 30000, label = 'Loading' } = {}) {

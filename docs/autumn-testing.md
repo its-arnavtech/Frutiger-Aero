@@ -61,3 +61,11 @@ These checks used the desktop in-app Chromium browser. They do not establish iPh
 - At **390 × 844**, Autumn reached `ready` with the mobile rendering profile, and the timeline and ancient-maple waypoint responded. This is desktop Chromium with a phone-sized viewport, not physical iPhone 12/Safari validation.
 - The desktop mill view reported about 20 FPS on this local browser at its adaptive 0.75 resolution floor; the portrait mobile-budget view reported about 57 FPS at 1.0. These are observations from this machine, not a performance guarantee. This pass does not establish photorealism or consistent 60 FPS across devices.
 - Screenshot: `artifacts/autumn-polish/mill-stream.png` (local, ignored by Git). Main remains pending the user's visual review.
+
+## Local loading recovery on 2026-10-20
+
+- The failing Chrome session reported that `/src/autumn/layout.js` did not export `millRace`, alongside a failed Vite hot-reload connection. The server's current file contained the export: Chrome was using mismatched development modules. Reaching `ready` alone was insufficient; an initial recovery still displayed the older forest and shoreline.
+- Development responses now use `Cache-Control: no-store`. For local review, `npm run start:local` builds first and serves the complete production bundle on port 3000. Its hashed asset URLs avoid mixing independently updated source modules. Editing a preview requires rebuilding and restarting it.
+- Import and export failures now recommend reloading the latest files instead of blaming the connection. A regression test covers the exact missing-export error without exposing internal source paths in the recovery screen.
+- All **61 tests pass** and the production build succeeds. A fresh Chrome session at `http://localhost:3000/?world=autumn` loaded `/assets/index-jOdskY1W.js`, reached `ready`, and reported the current 1,065 trees. No console warnings or errors were recorded. At 16.5%, the wheel spill and stream into the river, updated stones and smaller foliage were visible.
+- Screenshot: `artifacts/autumn-polish/chrome-loading-fixed.png` (local, ignored by Git). This verifies local desktop loading and the current scenery; it does not establish physical iPhone/Safari compatibility or smooth rendering on this GPU. Main and production remain pending the user's validation.

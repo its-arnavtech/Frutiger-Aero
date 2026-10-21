@@ -15,6 +15,8 @@ npm run dev
 
 `npm run build` creates the static site in `dist/`; `npm run preview` serves it. No backend, API keys, or external runtime services are needed.
 
+Use `npm run start:local` for review at **http://localhost:3000**. It builds first and serves versioned production bundles, avoiding mixed source-module versions after a disconnected development hot-reload session. Stop an existing server on port 3000 first. After editing, restart this command to rebuild the preview; use `npm run dev` when live source updates are wanted.
+
 ## Controls
 
 - Scroll or swipe to travel. Reverse scrolling retraces the camera path.

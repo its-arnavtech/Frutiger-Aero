@@ -7,9 +7,16 @@ import { renderingProfile } from '../src/quality.js';
 const pending = () => new Promise(() => {});
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 test('loading errors explain recovery without exposing bundle URLs or driver logs', () => {
-  assert.equal(loadingMessage(new Error('Failed to fetch dynamically imported module: /assets/main.js')), 'The world could not finish loading. Check your connection and try again.');
+  assert.equal(loadingMessage(new Error('Failed to fetch dynamically imported module: /assets/main.js')), 'The world\u2019s files could not be loaded. Reload the page to get the latest version.');
   assert.match(loadingMessage(new Error('WebGL context unavailable')), /another browser/);
   assert.match(loadingMessage(new Error('Loading took too long')), /lighter rendering/);
+});
+
+test('mismatched module exports explain recovery without blaming the network or exposing source paths', () => {
+  const message = loadingMessage(new SyntaxError("The requested module '/src/autumn/layout.js' does not provide an export named 'millRace'"));
+  assert.match(message, /Reload the page/);
+  assert.doesNotMatch(message, /connection|layout\.js|millRace/);
+  assert.equal(loadingMessage(new Error('Unknown render failure')), 'The world could not finish loading. Please try again.');
 });
 function startup(timeoutMs = 1000) {
   const events = [];
