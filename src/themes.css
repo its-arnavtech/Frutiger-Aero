@@ -10,8 +10,29 @@
 [data-theme=autumn] #scroll-hint{text-shadow:0 1px 6px #3a3c3388}
 [data-theme=autumn] #notice{background:#4f5149af}
 [data-theme=autumn] #loading-recovery button{color:#514d40;background:#fff8e7a0}
-.theme-trigger{width:auto;min-width:116px;border-radius:24px;display:flex;gap:9px;padding:0 14px;font-size:11px;letter-spacing:.04em}
-.worlds-icon{font-size:19px;opacity:.9}
+/* A small glass capsule, with a coloured globe identifying the current world. */
+.top-controls{align-items:center}
+#choose-world{
+  --orb-light:#a7f3e9;--orb-mid:#31b8c3;--orb-deep:#17749c;--orb-rim:#baffd9;
+  position:relative;isolation:isolate;display:flex;align-items:center;gap:10px;
+  width:auto;min-width:140px;height:44px;padding:0 13px 0 8px;border-radius:25px;
+  border:1px solid #f0ffff8c;color:#fff;font-size:12px;font-weight:500;letter-spacing:.015em;
+  background:linear-gradient(180deg,#ffffff30 0%,#ffffff08 52%,#0b39411c 100%),#234b5a70;
+  box-shadow:inset 0 1px 0 #ffffff80,inset 0 -1px 0 #ffffff14,0 3px 12px #0d28352b;
+  backdrop-filter:blur(20px) saturate(140%);-webkit-backdrop-filter:blur(20px) saturate(140%);
+  transition:background .2s,border-color .2s,box-shadow .2s,transform .2s;
+}
+#choose-world::before{content:"";position:absolute;inset:2px 8px auto;height:42%;border-radius:20px 20px 50% 50%;background:linear-gradient(#ffffff20,transparent);pointer-events:none;z-index:-1}
+#choose-world:hover,#choose-world[aria-expanded=true]{background:linear-gradient(180deg,#ffffff40,#ffffff0d 58%,#0b394117),#345c667d;border-color:#f0ffffc7;box-shadow:inset 0 1px 0 #ffffffa6,inset 0 -1px 0 #ffffff1f,0 5px 18px #0d283538;transform:translateY(-1px)}
+#choose-world:active{transform:translateY(0) scale(.98)}
+#choose-world:focus-visible{outline:2px solid #fff;outline-offset:4px}
+#theme-name{flex:1;text-align:left;white-space:nowrap;text-shadow:0 1px 2px #12344440}
+.worlds-icon{position:relative;display:grid;place-items:center;flex:0 0 27px;width:27px;height:27px;border-radius:50%;background:radial-gradient(ellipse at 32% 15%,#ffffffc4,transparent 50%),radial-gradient(ellipse at 75% 100%,var(--orb-rim),transparent 65%),linear-gradient(145deg,var(--orb-light),var(--orb-mid) 40%,var(--orb-deep));box-shadow:inset 0 0 0 1px #ffffff75,inset 0 -2px 4px #163a4947,0 1px 5px #082f4733}
+#choose-world .worlds-icon svg{width:19px;height:19px;stroke-width:1.1;opacity:.88;filter:none}
+#choose-world .worlds-chevron{flex:0 0 12px;width:12px;height:12px;stroke-width:1.6;opacity:.8;filter:none;transition:transform .22s}
+#choose-world[aria-expanded=true] .worlds-chevron{transform:rotate(180deg)}
+[data-theme=autumn] #choose-world{--orb-light:#ffedb4;--orb-mid:#d5a152;--orb-deep:#99573c;--orb-rim:#f5d490;background-color:#514a3c70}
+[data-theme=monsoon] #choose-world{--orb-light:#c6e6e7;--orb-mid:#749faa;--orb-deep:#33576a;--orb-rim:#b4d3c6;background-color:#243e4a80}
 html:has(#world-picker[open]){overflow:hidden}
 #retry-worlds{flex-basis:100%;font-size:12px;opacity:.8}
 #world-picker{width:min(470px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:30px;color:#f7fcfb;border:1px solid #ffffff42;border-radius:26px;background:linear-gradient(145deg,#263f43ed,#182b2ced);backdrop-filter:blur(24px);box-shadow:0 24px 90px #061b2766;overflow:auto}
@@ -41,7 +62,7 @@ a.theme-choice:hover{background:#ffffff14;border-color:#ffffff77;transform:trans
 .unavailable .theme-orb{width:24px;height:24px}
 .unavailable .theme-label strong{font-size:11px}
 .unavailable .theme-label small{font-size:9px}
-@media(max-width:600px){.theme-trigger{min-width:101px;padding:0 10px;font-size:10px;gap:6px}.hud .top-controls{gap:6px}#world-picker{padding:24px}.theme-choice{padding:16px;gap:15px}.picker-heading h1{font-size:23px}.unavailable{padding:6px 0}.theme-label small{font-size:9px}}
+@media(max-width:600px){#choose-world{min-width:124px;padding:0 10px 0 7px;font-size:11px;gap:8px}.hud .top-controls{gap:6px}#world-picker{padding:24px}.theme-choice{padding:16px;gap:15px}.picker-heading h1{font-size:23px}.unavailable{padding:6px 0}.theme-label small{font-size:9px}}
 
 :root[data-theme=monsoon]{background:#a7b9bc;color:#edf5f4}
 [data-theme=monsoon] #experience{background:#a7b9bc}

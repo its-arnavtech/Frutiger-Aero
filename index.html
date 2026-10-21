@@ -18,7 +18,11 @@
       <header class="hud">
         <button id="home" class="world-mark" aria-label="Return to the beginning" title="Return to the beginning"><span class="mark-orb"></span></button>
         <div class="top-controls">
-          <button id="choose-world" class="glass-button theme-trigger" aria-label="Choose a world" aria-haspopup="dialog" aria-expanded="false"><span class="worlds-icon" aria-hidden="true">◈</span><span id="theme-name">Worlds</span><span aria-hidden="true">⌄</span></button>
+          <button id="choose-world" class="glass-button theme-trigger" aria-label="Choose a world" aria-describedby="theme-name" aria-controls="world-picker" aria-haspopup="dialog" aria-expanded="false">
+            <span class="worlds-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><ellipse cx="12" cy="12" rx="3.5" ry="8"/><path d="M4 12h16"/></svg></span>
+            <span id="theme-name">Worlds</span>
+            <svg class="worlds-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg>
+          </button>
           <button id="sound" class="glass-button" aria-label="Enable ambient sound" aria-pressed="false" title="Ambient sound"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path class="sound-waves" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="sound-mute" d="m16 9 6 6m0-6-6 6"/></svg></button>
           <button id="fullscreen" class="glass-button" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button>
         </div>
