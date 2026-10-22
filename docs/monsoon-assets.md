@@ -14,6 +14,14 @@ Ten fractured stone variants form boulder and gravel deposits with smaller chips
 
 The generated maps recorded below remain historical assets in the repository; the current Monsoon scene no longer loads them.
 
+## Detailed cliffs and waterfalls
+
+`src/monsoon/hydrology.js` defines two descending watercourses and five rock lips. These same water levels carve the terrain, place the plunge basins and position the airborne water. `waterfalls.js` samples gravity-driven trajectories into two irregular water sheets per drop. Animated turbulence opens transparent gaps and foam filaments; GPU droplets rebound at impact, noisy foam spreads across the pools, and several wind-sheared mist lobes surround each landing. The water and terrain are real scene geometry and appear in the lake reflection. Fine spray and mist are excluded from the lower-resolution reflection. All water motion shares the scene clock so reduced motion freezes it consistently.
+
+Exposed terrain also gains piecewise planar joints and tilted stratification. The [Rock Face 01 photogrammetry model](https://polyhaven.com/a/rock_face_01) by Dario Barresi, CC0, supplies real fractured outcrops around the waterfalls. The original 20,174-triangle mesh, binary buffer and 1K colour, OpenGL normal and packed material maps are bundled in `public/assets/monsoon/rock-face-scan/`. Source: the Poly Haven files API, `https://api.polyhaven.com/files/rock_face_01`, downloaded October 21, 2026. Desktop and phone profiles instance 30 outcrops; recovery uses 10. Every view uses the same source geometry.
+
+The phone and recovery terrain grids retain extra samples at the plunge basins. Tests check the actual irregular curtain vertices against rendered terrain triangles at every quality, including the water's contact with each lip. These effects are an artistic real-time model, not a fluid-dynamics simulation.
+
 ## Generated rock
 
 - Saved asset: `public/assets/monsoon/wet-slate.png`.

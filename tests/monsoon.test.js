@@ -6,6 +6,8 @@ import { createTerrainGeometry } from '../src/monsoon/landscape.js';
 import { buildShore, createConifer, createShrub } from '../src/monsoon/vegetation.js';
 import { alpineElevations, terrainColumns, terrainRows } from '../src/monsoon/alpine-elevation.js';
 import * as THREE from 'three';
+import { drainage, waterfallDrops, channelAt } from '../src/monsoon/hydrology.js';
+import { fallingPoint, createCurtainGeometry, createWaterfalls } from '../src/monsoon/waterfalls.js';
 
 const steps = 6000;
 const flight = Array.from({ length: steps + 1 }, (_, i) => cameraAt(i / steps));
@@ -73,6 +75,19 @@ test('detailed mountain meshes retain valid surfaces, lake depth and flight clea
         assert.ok(color.getY(i) >= .8 && color.getY(i) <= 1);
       }
       assert.ok(surfaceHeight(0, -80) < -20, 'Fine geometry must preserve the clear lake basin');
+      for(const fall of waterfallDrops)for(let step=1;step<=90;step++)for(const side of [-1,-.5,0,.5,1]) {
+        const p=fallingPoint(fall,step/90,side);
+        assert.ok(p.y-surfaceHeight(p.x,p.z)>.1,`Falling water intersects the ${JSON.stringify(profile)} cliff at drop ${fall.index}`);
+      }
+      for(const fall of waterfallDrops)for(let layer=0;layer<2;layer++) {
+        const curtain=createCurtainGeometry(fall,layer),p=curtain.attributes.position;
+        try {
+          for(let i=0;i<p.count;i++) {
+            const clearance=p.getY(i)-surfaceHeight(p.getX(i),p.getZ(i));
+            assert.ok(clearance>(i<13?-.5:0),'The actual ragged sheet must clear the terrain after leaving the wet lip');
+          }
+        }finally{curtain.dispose();}
+      }
       for (let i = 0; i < steps; i += 7) {
         const p = flight[i];
         assert.ok(p.y - Math.max(0, surfaceHeight(p.x, p.z)) > 2.5, 'The actual triangles must clear the flight');
@@ -135,5 +150,60 @@ test('spruce branches and willow leaves are finite three-dimensional meshes', ()
       assert.ok(geometry.boundingSphere.radius>0 && geometry.boundingSphere.radius<2);
       assert.ok(geometry.index.count<8000,'Each instanced plant must have a bounded geometry cost');
     }finally{geometry.dispose();}
+  }
+});
+
+test('waterfall paths follow gravity between descending lips and excavated pools', () => {
+  assert.equal(waterfallDrops.length,5);
+  for(const stream of drainage) {
+    for(let i=1;i<stream.nodes.length;i++){
+      assert.ok(stream.nodes[i][1]<=stream.nodes[i-1][1],'Water levels must always descend');
+      assert.ok(stream.nodes[i][2]>stream.nodes[i-1][2],'The watercourse must advance toward the lake');
+    }
+    assert.ok(stream.nodes.at(-1)[1]<0,'The outflow must enter the lake');
+    for(let z=stream.nodes[0][2];z<=stream.nodes.at(-1)[2];z+=1.7)assert.ok(Number.isFinite(channelAt(stream,z).level));
+  }
+  for(const fall of waterfallDrops) {
+    assert.ok(fall.drop>75 && fall.drop<140);
+    assert.ok(fall.speed>0 && fall.duration>0);
+    assert.ok(fallingPoint(fall,0).distanceTo(new THREE.Vector3(...fall.lip))<.00001);
+    assert.ok(fallingPoint(fall,1).distanceTo(new THREE.Vector3(...fall.landing))<.00001);
+    for(const fraction of [.1,.25,.5,.75]) {
+      const point=fallingPoint(fall,fraction),age=fall.duration*Math.sqrt(fraction);
+      assert.ok(Math.abs(point.y-(fall.lip[1]-4.905*age*age))<.00001);
+      assert.ok(Math.abs(Math.hypot(point.x-fall.lip[0],point.z-fall.lip[2])-fall.speed*age)<.00001);
+    }
+    for(let layer=0;layer<2;layer++) {
+      const geometry=createCurtainGeometry(fall,layer);
+      try {
+        assert.ok(geometry.index.count<10000);
+        for(const value of geometry.attributes.position.array)assert.ok(Number.isFinite(value));
+        assert.ok(geometry.boundingSphere.radius>fall.drop*.4);
+      }finally{geometry.dispose();}
+    }
+  }
+});
+
+test('waterfall spray allocations are bounded and reduced motion freezes the shared clock', () => {
+  for(const profile of [{},{mobile:true},{mobile:true,low:true}]) {
+    const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera();
+    const falls=createWaterfalls(scene,profile,terrainHeight);
+    try {
+      const sprays=scene.children.filter(mesh=>mesh.name==='Ballistic droplets and rebounding impact spray');
+      assert.equal(sprays.length,5);
+      const expected=profile.low?70:profile.mobile?150:320;
+      for(const spray of sprays)assert.equal(spray.geometry.instanceCount,expected);
+      falls.update(4,camera);assert.equal(sprays[0].material.uniforms.time.value,4);
+      falls.update(4,camera);assert.equal(sprays[0].material.uniforms.time.value,4);
+      assert.equal(scene.children.filter(mesh=>mesh.name==='Excavated glacial plunge pool').length,5);
+      const runs=scene.children.filter(mesh=>mesh.name==='Connected downhill whitewater channel');
+      const ends=drainage.flatMap(stream=>[...stream.lips,stream.nodes.length-1].map(index=>stream.nodes[index]));
+      assert.equal(runs.length,ends.length);
+      for(let i=0;i<runs.length;i++){
+        const p=runs[i].geometry.attributes.position,a=p.count-2,b=p.count-1;
+        assert.ok(Math.abs((p.getX(a)+p.getX(b))*.5-ends[i][0])<.0001);
+        assert.ok(Math.abs((p.getZ(a)+p.getZ(b))*.5-ends[i][2])<.0001,'Each run must meet its rock lip or lake outlet exactly');
+      }
+    }finally{const materials=new Set();for(const mesh of scene.children){mesh.geometry.dispose();materials.add(mesh.material);}for(const material of materials)material.dispose();}
   }
 });

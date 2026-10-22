@@ -25,8 +25,8 @@ export function cirqueMaterial(maps) {
   material.onBeforeCompile = shader => {
     shader.uniforms.grassMap = { value: maps.grass };
     for (const name of ['rockNormal', 'rockRough', 'grassNormal', 'sand', 'sandNormal']) shader.uniforms[name] = { value: maps[name] };
-    shader.vertexShader = `attribute vec2 mountainHabitat; varying vec2 vHabitat; varying vec3 vCliff, vSlope;\n${shader.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\nvCliff=position; vSlope=normal; vHabitat=mountainHabitat;');
-    shader.fragmentShader = `varying vec2 vHabitat; varying vec3 vCliff, vSlope; uniform sampler2D grassMap,rockNormal,rockRough,grassNormal,sand,sandNormal;
+    shader.vertexShader = `attribute vec2 mountainHabitat;attribute float mountainWet; varying float vWet; varying vec2 vHabitat; varying vec3 vCliff, vSlope;\n${shader.vertexShader}`.replace('#include <begin_vertex>', '#include <begin_vertex>\nvCliff=position; vSlope=normal; vHabitat=mountainHabitat;vWet=mountainWet;');
+    shader.fragmentShader = `varying float vWet; varying vec2 vHabitat; varying vec3 vCliff, vSlope; uniform sampler2D grassMap,rockNormal,rockRough,grassNormal,sand,sandNormal;
       ${surfaceDetail}
       float nHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       float nValue(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(nHash(i),nHash(i+vec2(1,0)),f.x),mix(nHash(i+vec2(0,1)),nHash(i+vec2(1,1)),f.x),f.y);}
@@ -35,7 +35,7 @@ export function cirqueMaterial(maps) {
         vec3 weights=pow(abs(normalize(vSlope)),vec3(6.)); weights/=dot(weights,vec3(1.));
         vec3 p=vCliff*.018;
         p+=vec3(nValue(vCliff.yz*.013),nValue(vCliff.xz*.017),nValue(vCliff.xy*.011))*.65;
-        vec4 sampledDiffuseColor=texture2D(map,p.zy)*weights.x+texture2D(map,p.xz)*weights.y+texture2D(map,p.xy)*weights.z;
+        vec4 sampledDiffuseColor=projectSurface(map,p,weights);
         vec3 mineral=texture2D(map,p.zy*.371+vec2(.29,.73)).rgb*weights.x+texture2D(map,p.xz*.371+vec2(.61,.17)).rgb*weights.y+texture2D(map,p.xy*.371+vec2(.83,.43)).rgb*weights.z;
         vec3 fineRock=projectSurface(map,vCliff*.22,weights).rgb;
         sampledDiffuseColor.rgb=mix(sampledDiffuseColor.rgb,mineral,.20)*(.8+fineRock*.65);
@@ -54,7 +54,9 @@ export function cirqueMaterial(maps) {
         snow=max(snow,smoothstep(630.,690.,vCliff.y)*smoothstep(.08,.35,vHabitat.x));
         vec3 ice=mix(vec3(.73,.82,.88),vec3(.96,.975,.98),nValue(vCliff.xz*.16));
         float treeline=360.+(nValue(vCliff.xz*.009)-.5)*130.;
+        float exposure=smoothstep(.38,.74,slope);
         float meadow=smoothstep(.25,.67,vHabitat.x+vHabitat.y*.09)*(1.-smoothstep(treeline,treeline+130.,vCliff.y))*smoothstep(.35,2.,vCliff.y);
+        meadow*=mix(.23,1.,exposure)*(1.-vWet*.75);
         vec3 grassTex=texture2D(grassMap,vCliff.xz*.32).rgb;
         vec3 grass=mix(grassTex*vec3(.64,1.13,.48),vec3(.12,.23,.035),.25);
         grass*=.77+nValue(vCliff.xz*.032)*.48;
@@ -63,8 +65,8 @@ export function cirqueMaterial(maps) {
         vec3 sandColor=texture2D(sand,vCliff.xz*.22).rgb*vec3(.66,.68,.62);
         diffuseColor.rgb=mix(diffuseColor.rgb,sandColor,sediment);
         diffuseColor.rgb=mix(diffuseColor.rgb,ice,snow);
-        float wet=1.-smoothstep(-.5,2.8,vCliff.y);
-        diffuseColor.rgb*=1.-wet*.25;`)
+        float wet=max(vWet,1.-smoothstep(-.5,2.8,vCliff.y));
+        diffuseColor.rgb*=1.-wet*.32;`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor=mix(clamp(projectSurface(rockRough,p,weights).g,.65,1.),.96,meadow); roughnessFactor=mix(roughnessFactor,.4,wet); roughnessFactor=mix(roughnessFactor,.94,snow);')
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         vec3 stoneN=projectedNormal(rockNormal,p,weights,normal,-vViewPosition,1.1);
@@ -75,6 +77,6 @@ export function cirqueMaterial(maps) {
         normal=normalize(mix(normal,sandN,sediment));
         normal=normalize(mix(normal,nonPerturbedNormal,snow*.85));`);
   };
-  material.customProgramCacheKey = () => 'monsoon-surveyed-green-alpine-v4';
+  material.customProgramCacheKey = () => 'monsoon-jointed-cliff-watercourses-v5';
   return material;
 }

@@ -1,5 +1,6 @@
 import { alpineElevations, terrainColumns, terrainRows } from './alpine-elevation.js';
 import { rockRelief } from './rock-relief.js';
+import { carveDrainage } from './hydrology.js';
 
 export const TAU = Math.PI * 2;
 export const clamp = (n, a = 0, b = 1) => Math.max(a, Math.min(b, n));
@@ -33,20 +34,33 @@ export function mountainHeight(x, z) {
   const elevation = (alpineElevations[i] * (1-u) + alpineElevations[i+1] * u) * (1-v)
     + (alpineElevations[i+terrainColumns] * (1-u) + alpineElevations[i+terrainColumns+1] * u) * v;
   const mass = Math.max(0, elevation - 2600) * .4;
+  const gx=((alpineElevations[i+1]-alpineElevations[i])*(1-v)+(alpineElevations[i+terrainColumns+1]-alpineElevations[i+terrainColumns])*v)*(terrainColumns-1)/1600*.4;
+  const gz=((alpineElevations[i+terrainColumns]-alpineElevations[i])*(1-u)+(alpineElevations[i+terrainColumns+1]-alpineElevations[i+1])*u)*(terrainRows-1)/1160*.4;
+  const exposure=1-smooth(.58,.86,1/Math.hypot(gx,1,gz));
   const warp = noise(x*.017,z*.013)*.3;
+  // Piecewise planar fractures leave sharp joints and strata on exposed rock.
+  // They add ledges to the smooth DEM rather than inflating rounded bumps.
+  const planar=(sx,sz)=>{
+    const a=Math.floor(sx),b=Math.floor(sz),u=sx-a,v=sz-b;
+    const h00=hash(a,b),h10=hash(a+1,b),h01=hash(a,b+1),h11=hash(a+1,b+1);
+    return u+v<1?h00+(h10-h00)*u+(h01-h00)*v:h11+(h01-h11)*(1-u)+(h10-h11)*(1-v);
+  };
+  const joint=planar(x*.027+warp,z*.032-warp);
+  const slabs=(Math.abs(joint*2-1)-.38)*22+(planar(x*.075+17,z*.061)-.5)*7;
+  const bedding=mass*.075+x*.025+noise(x*.014,z*.011)*1.7;
+  const f=bedding-Math.floor(bedding);
+  const ledge=(smooth(.14,.35,f)-f)*6;
   const fractures = (rockRelief(x*.014+warp,z*.018+warp)-.5)*10
-    + (noise(x * .075, z * .065) - .5) * 4 + (noise(x * .23, z * .21) - .5) * 1.2;
+    + (noise(x * .075, z * .065) - .5) * 4 + (noise(x * .23, z * .21) - .5) * 1.2
+    + (slabs+ledge)*exposure;
   return Math.max(0, mass + fractures * smooth(70, 230, mass)) * border;
 }
 // The same continuous surface drives the mesh, lake depth and camera checks.
-export function terrainHeight(x, z) {
+export function naturalTerrainHeight(x, z) {
   const r = basinRadius(x, z), shore = smooth(1.0, 1.38, r);
   const bed = .55 - lake.depth * (1 - smooth(.48, 1.015, r));
   const foothills = (3 + noise(x * .007, z * .007) * 19 + noise(x * .023, z * .023) * 4) * shore;
   const detail = (noise(x * .16, z * .16) - .5) * .7 * smooth(.95, 1.17, r);
   return bed + foothills + mountainHeight(x, z) + detail;
 }
-export const streams = [
-  { from: [-95, -850], to: [-78, -465], width: 1.1 },
-  { from: [130, -780], to: [112, -464], width: .65 },
-];
+export function terrainHeight(x,z){const raw=naturalTerrainHeight(x,z);return z< -445?carveDrainage(x,z,raw):raw;}

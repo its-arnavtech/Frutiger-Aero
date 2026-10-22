@@ -1,0 +1,14 @@
+Rock Face 01 - photogrammetry model by Dario Barresi
+Source: https://polyhaven.com/a/rock_face_01
+License: CC0 (https://polyhaven.com/license)
+Retrieved October 21, 2026 using https://api.polyhaven.com/files/rock_face_01
+
+Original glTF geometry and 1K material maps. The scene instances the source
+mesh around fictional waterfall walls; source UVs and normals are retained.
+No runtime request is made to Poly Haven.
+
+Source geometry: 20,174 triangles, 11,106 exported vertices.
+rock_face_01.bin MD5: 06caed23e725af568b64f8cbee210c1c
+rock_face_01_arm_1k.jpg MD5: 5799e7f5546350576b87bf67c34fb49f
+rock_face_01_nor_gl_1k.jpg MD5: 46e01f5c3b8ac4463aeef2b4c61d1cd4
+rock_face_01_diff_1k.jpg MD5: 98ee9f024a6383d7e6cab44ed41e1f15

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { terrainHeight, terrainBounds, smooth } from './layout.js';
 import { cirqueMaterial } from './materials.js';
 import { buildShore } from './vegetation.js';
+import { waterExposure, waterfallDrops } from './hydrology.js';
 
 export function createTerrainGeometry(profile) {
   const { width, depth, centerZ } = terrainBounds;
@@ -17,6 +18,23 @@ export function createTerrainGeometry(profile) {
   };
   const xs = axis(-width / 2, width / 2, -640, 640);
   const zs = axis(centerZ - depth / 2, centerZ + depth / 2, -1350, -450);
+  // Keep narrow plunge basins represented even in the six-metre recovery
+  // grid. The surrounding mountain still uses the selected coarse budget.
+  if(profile.mobile || profile.low) {
+    for(const fall of waterfallDrops) {
+      const [x,,z]=fall.landing;
+      xs.push(x,x-fall.width*1.4,x+fall.width*1.4);
+      zs.push(z,z-fall.poolRadii[1]*.85,z+fall.poolRadii[1]*.85);
+      xs.push(x-fall.poolRadii[0]*.5,x+fall.poolRadii[0]*.5);
+      zs.push(z-fall.poolRadii[1]*.25,z+fall.poolRadii[1]*.25);
+      for(const side of [-1,1]){
+        xs.push(x+fall.direction[1]*fall.width*1.37*side);
+        zs.push(z-fall.direction[0]*fall.width*1.37*side);
+      }
+    }
+    const unique=values=>[...new Set(values)].sort((a,b)=>a-b);
+    xs.splice(0,xs.length,...unique(xs));zs.splice(0,zs.length,...unique(zs));
+  }
   const nx = xs.length - 1, nz = zs.length - 1;
   const ground = new THREE.PlaneGeometry(width, depth, nx, nz);
   const positions = ground.attributes.position;
@@ -35,9 +53,10 @@ export function createTerrainGeometry(profile) {
     const h00 = positions.getY(a), h10 = positions.getY(a + 1), h01 = positions.getY(a + nx + 1), h11 = positions.getY(a + nx + 2);
     return u + v < 1 ? h00 + (h10 - h00) * u + (h01 - h00) * v : h11 + (h01 - h11) * (1 - u) + (h10 - h11) * (1 - v);
   };
-  const habitat = new Float32Array(positions.count * 2), colors = new Float32Array(positions.count * 3);
+  const habitat = new Float32Array(positions.count * 2), colors = new Float32Array(positions.count * 3),wetness=new Float32Array(positions.count);
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
+    if(z< -445)wetness[i]=waterExposure(x,y,z);
     if (y < 1 || Math.abs(x) > 1170 || z < -1670 || z > 870) { habitat.set([1, 0], i * 2); colors.set([1, 1, 1], i * 3); continue; }
     const h = (dx, dz) => surfaceHeight(x + dx, z + dz);
     const hollow = (h(-12, 0) + h(12, 0) + h(0, -12) + h(0, 12)) * .25 - y;
@@ -48,6 +67,7 @@ export function createTerrainGeometry(profile) {
   }
   ground.setAttribute('mountainHabitat', new THREE.BufferAttribute(habitat, 2));
   ground.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  ground.setAttribute('mountainWet',new THREE.BufferAttribute(wetness,1));
   return { ground, surfaceHeight };
 }
 

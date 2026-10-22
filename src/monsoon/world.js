@@ -9,6 +9,7 @@ import { renderingProfile } from '../quality.js';
 import { createCinema } from '../cinema.js';
 import { compileWorld } from '../gpu.js';
 import { waitFor } from '../startup.js';
+import { loadCliffScan, buildScannedCliffs } from './cliffs.js';
 
 export async function createWorld(canvas, { signal, onStage }) {
   await onStage('Listening to the rain');
@@ -42,7 +43,7 @@ export async function createWorld(canvas, { signal, onStage }) {
     resources.add(texture); texture.anisotropy = renderer.capabilities.getMaxAnisotropy(); return texture;
   });
   await onStage('Rain on stone');
-  const [maps, hdr] = await waitFor(Promise.all([loadMaterials(load), profile.floatTargets ? load('/assets/environment/kloofendal_48d_partly_cloudy_puresky_2k.hdr', new HDRLoader()) : null]), { signal, timeoutMs: 30000, label: 'Loading mountain materials' });
+  const [maps, hdr, cliffScan] = await waitFor(Promise.all([loadMaterials(load), profile.floatTargets ? load('/assets/environment/kloofendal_48d_partly_cloudy_puresky_2k.hdr', new HDRLoader()) : null,loadCliffScan(renderer,signal,resources)]), { signal, timeoutMs: 30000, label: 'Loading mountain materials' });
   const sunDirection = new THREE.Vector3(-.65, .7, .28).normalize();
   const sky = createCloudbreakSky(scene, maps.sky, sunDirection);
   if (hdr) {
@@ -59,7 +60,10 @@ export async function createWorld(canvas, { signal, onStage }) {
   scene.add(light, light.target); signal.addEventListener('abort', () => light.shadow.dispose(), { once: true });
   await onStage('Carving a place for the water');
   const landscape = buildLandscape(scene, maps, profile);
+  const cliffs=buildScannedCliffs(scene,cliffScan,profile,landscape.surfaceHeight);
+  canvas.dataset.cliffFaces=String(cliffs.count);
   const lake = createLake(scene, maps, profile, signal), weather = createWeather(scene, profile, landscape.surfaceHeight);
+  canvas.dataset.waterfalls=String(weather.waterfalls.drops.length);
   cinema = createCinema(renderer, scene, camera, { scale: profile.initialRatio / profile.canvasRatio, occlusion: profile.occlusion, bloom: profile.bloom, floatTargets: profile.floatTargets });
   cinema.grade.exposure.value = 1.02; cinema.grade.saturation.value = .98; cinema.grade.contrast.value = .10; cinema.quality.glow = .012;
   let pixelRatio = profile.initialRatio;

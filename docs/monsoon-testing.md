@@ -24,6 +24,12 @@ Desktop phone-size checks are not physical iPhone 12 / Safari measurements.
 
 ## Checked on 2026-10-21
 
+### Waterfall and cliff revision
+
+- All 69 automated tests pass and the production build succeeds. Waterfall checks cover descending water levels, gravity-driven trajectories, lake outflows, finite curtain geometry, bounded spray allocations and the shared animation clock. Both the central paths and actual ragged sheet vertices clear the rendered cliff at desktop, phone and recovery quality after leaving their wet lips.
+- The opening and **Silver threads** views were inspected for broken water sheets, physical depth, wet cliff walls, impact foam, spray and mist. The terrain has sharper joints and ledges, and the scanned outcrops load into the live scene.
+- The production bundle reaches `ready` with all five drops and the mobile budget. Portrait and landscape dimensions are checked with simulated 3× pixel density. This is desktop emulation, not physical-phone GPU or Safari validation.
+
 ### Realism revision
 
 - All 67 automated tests pass and the production build succeeds. New checks cover the Matterhorn elevation range, asymmetric terrain, finite spruce/willow meshes, bounded deposit and plant counts, grounded planting and clearance from every spruce crown.
